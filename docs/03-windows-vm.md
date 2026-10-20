@@ -195,7 +195,22 @@ Get-Content C:\lab-init.log -Tail 30
     ```
 
   - 예방: 첫 부팅 스크립트 마지막에 위의 `Set-Service ... Disabled`를 넣거나, RSA 키페어로 서버를 만들고 `nova get-password`로 비밀번호를 받습니다.
-- **VM이 저절로 꺼져 있음 (SHUTOFF)**
-  - 증상: `openstack server event list`에 사용자 없이(`user_id: null`) `stop`이 찍힙니다. 이건 게스트가 스스로 꺼진 것을 nova가 전원 상태 동기화로 기록한 것입니다.
-  - Windows 이벤트 41/6008(예기치 않은 종료)도 함께 남습니다. 호스트 OOM은 아니었고, 원인은 확인하지 못했습니다(Windows Update 진행 중 발생 추정).
-  - 대처: `openstack server start lab-windows`. 재발하면 이벤트 뷰어의 System 로그(1074/41/6008)를 확인하세요.
+- **VM이 30분쯤 뒤 저절로 꺼짐 (SHUTOFF)**
+  - 원인: Windows 기본 전원 설정이 **30분 뒤 절전(S3)**입니다. 게스트가 절전에 들어가면 nova가 이를 감지하고 `Instance is suspended unexpectedly. Calling the stop API.`로 VM을 꺼 버립니다.
+    - stop 요청에는 사용자가 없어서 `server event list`에 `user_id: null`인 `stop`이 남습니다.
+    - QEMU 로그에는 `shutting down, reason=destroyed`가 남습니다.
+    - Windows에는 이벤트 41/6008(예기치 않은 종료)만 남습니다.
+  - 확인 (Kolla 호스트):
+
+    ```bash
+    sudo grep -h "suspended unexpectedly" /var/log/kolla/nova/nova-compute.log
+    ```
+
+  - 해결 (Windows, 관리자 PowerShell): 절전과 최대 절전을 끕니다. 첫 부팅 스크립트에도 넣어 두었습니다.
+
+    ```powershell
+    powercfg /change standby-timeout-ac 0
+    powercfg /change hibernate-timeout-ac 0
+    powercfg /change monitor-timeout-ac 0
+    powercfg /hibernate off
+    ```

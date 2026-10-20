@@ -68,6 +68,13 @@ if (-not (Get-NetFirewallRule -Name 'TightVNC-In-TCP-5900' -ErrorAction Silently
 # 5. 완료 표시
 Set-Content -Path 'C:\lab-init.done' -Value (Get-Date -Format o)
 
+# ---- 절전 끄기 ----
+# 게스트가 절전(S3)에 들어가면 nova가 'suspended unexpectedly'로 보고 VM을 stop합니다.
+powercfg /change standby-timeout-ac 0
+powercfg /change hibernate-timeout-ac 0
+powercfg /change monitor-timeout-ac 0
+powercfg /hibernate off
+
 # ---- Cloudbase-Init 비활성화 ----
 # SetUserPasswordPlugin이 ed25519 키페어에서 실패하면 부팅마다 Admin 비밀번호를 임의 값으로 바꿉니다.
 # 첫 부팅 설정은 끝났으므로 다음 부팅부터 실행하지 않습니다.

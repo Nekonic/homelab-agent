@@ -243,6 +243,9 @@ ops는 DM으로만 대화하므로 필수 5개만 줍니다. 서버에는 DM을 
    - `Message Content Intent`: **켜기 (필수).** 꺼져 있으면 Discord가 연결을 거부해서 봇이 오프라인으로 남습니다.
    - `Server Members Intent`: **켜기.** Hermes 문서에서 필수로 표시합니다.
    - `Presence Intent`: 끄기.
+
+   ![봇 메뉴: Server Members Intent, Message Content Intent 켬](images/discord-bot-intents.webp)
+
 2. **Reset Token** → 토큰을 복사합니다. 이 화면을 벗어나면 다시 볼 수 없습니다. 이 토큰을 `.env`의 `DISCORD_BOT_TOKEN`에 넣습니다.
    - ops 토큰은 `~/.hermes/.env`, reader 토큰은 `~/.hermes/profiles/reader/.env`에 넣습니다.
    - 같은 토큰을 두 프로필에 넣으면 두 번째 게이트웨이가 `duplicate_credential`로 멈춥니다.

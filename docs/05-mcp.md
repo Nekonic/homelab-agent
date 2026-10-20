@@ -140,18 +140,27 @@ Hermes 설정:
     tools: {resources: false, prompts: false}
 ```
 
-#### 자동 로그온 (재부팅 후에도 Windows-MCP가 항상 뜨게)
+#### 자동 로그온 (켜면 Windows-MCP가 저절로 뜨게)
 
-Windows-MCP는 데스크톱 세션이 있어야 동작합니다. 예약 작업은 Admin이 로그온할 때 실행되므로, 아무도 로그온하지 않으면 8000 포트가 열리지 않습니다. 이때 `hermes mcp test windows`는 30초 타임아웃으로 실패합니다.
+Windows-MCP는 데스크톱 세션이 있어야 동작합니다. 예약 작업은 Admin이 로그온할 때 실행되므로, 아무도 로그온하지 않으면 8000 포트가 열리지 않습니다. 이때 `hermes mcp test windows`는 30초 타임아웃으로 실패하고, 서버 로그에는 `No active interactive desktop`이 남습니다.
 
-이 구성에서는 [scripts/windows-autologon.ps1](../scripts/windows-autologon.ps1)로 자동 로그온을 켰습니다.
+스크립트: [scripts/windows-autologon.ps1](../scripts/windows-autologon.ps1). MS 문서의 기본 방식인 Winlogon 레지스트리 `DefaultPassword`를 씁니다.
 
-- 비밀번호는 레지스트리 `DefaultPassword`(평문)가 아니라 **LSA 비밀 저장소**에 넣습니다. Sysinternals Autologon과 같은 방식입니다.
-- 저장하기 전에 비밀번호가 맞는지 검사합니다. 틀린 비밀번호로 저장하면 부팅이 로그온 실패 화면에 멈추기 때문입니다.
-- 화면 보호기 잠금을 끕니다. 잠긴 데스크톱에서는 UI 자동화가 동작하지 않습니다.
-- 공용 바탕화면에 `RDP-disconnect-to-console.cmd`를 만듭니다. RDP로 들어갔다 나올 때 창을 그냥 닫으면 세션이 잠깁니다. 대신 이 파일을 실행하면 세션이 콘솔로 돌아가 잠기지 않습니다.
+| 방식 | 재부팅 (`shutdown /r`) | 전원 끄고 켜기 (`nova stop/start`) |
+|---|---|---|
+| LSA 비밀 (Sysinternals Autologon 방식) | 됨. 실제로는 Windows 11의 ARSO(재시작 후 자동 로그인) 덕분으로 보임 | **안 됨.** `AutoAdminLogon`이 0으로 되돌아가기도 함 |
+| 레지스트리 `DefaultPassword` | 됨 | **됨 (39초)** |
 
-실행 (Kolla 호스트의 비밀값 파일에서 비밀번호를 파이프로 넘기므로 화면이나 명령줄에 남지 않음):
+2026-10-21, Windows 11 build 26200에서 확인했습니다.
+
+스크립트가 하는 일:
+- 저장하기 전에 비밀번호가 맞는지 검사합니다. 틀린 값으로 저장하면 부팅이 로그온 실패 화면에 멈춥니다.
+- `DevicePasswordLessBuildVersion=0`으로 Windows Hello 전용 로그인 요구를 끕니다.
+- 화면 보호기 잠금을 끕니다.
+
+**트레이드오프**: 비밀번호가 HKLM Winlogon 키에 평문으로 남습니다. 사용자가 Admin 하나뿐이고 보안 그룹으로 접근이 막힌 실습용 VM이라 감수합니다.
+
+실행 (Kolla 호스트의 비밀값 파일에서 비밀번호를 파이프로 넘깁니다):
 
 ```bash
 scp -o ProxyJump=ubuntu@<ASSISTANT_FIP> scripts/windows-autologon.ps1 Admin@<WIN_LAB_IP>:C:/Windows/Temp/
@@ -161,11 +170,37 @@ scp -o ProxyJump=ubuntu@<ASSISTANT_FIP> scripts/windows-autologon.ps1 Admin@<WIN
 ssh master@<KOLLA_HOST> 'grep ^WIN_ADMIN_PASSWORD= ~/lab-secrets.env | cut -d= -f2-' | ssh -J ubuntu@<ASSISTANT_FIP> Admin@<WIN_LAB_IP> 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\Windows\Temp\windows-autologon.ps1 -User Admin; Remove-Item C:\Windows\Temp\windows-autologon.ps1'
 ```
 
-검증: 재부팅(`shutdown /r /t 5`) 후 1분쯤 지나면 `query user`에 `console ... Active`가 보이고, `hermes mcp test windows`에 `Tools discovered: 21`이 나옵니다. 2026-10-21 확인. 해제는 `-Disable`로 합니다.
+#### RDP 창을 그냥 닫아도 되게
 
-트레이드오프: VM 콘솔(Horizon/VNC)에 접근할 수 있는 사람은 로그온된 데스크톱을 바로 씁니다. 이 VM은 보안 그룹으로 VNC·SSH를 비서 VM에서만 허용하므로 그 범위 안에서만 감수합니다.
+RDP로 접속하면 데스크톱 세션이 RDP로 넘어갑니다. 창을 닫으면 세션이 "연결 끊김"이 되어 데스크톱이 없어지고, Windows-MCP가 멈춥니다.
 
-로그온/UAC 보안 데스크톱처럼 Windows-MCP가 못 보는 화면은 `vnc`로 처리합니다.
+스크립트 [scripts/windows-rdp-autoconsole.ps1](../scripts/windows-rdp-autoconsole.ps1)는 두 가지를 해서 이 문제를 없앱니다.
+
+1. 예약 작업 `rdp-disconnect-to-console`을 만듭니다. RDP 연결이 끊기는 순간(이벤트 24, `TerminalServices-LocalSessionManager/Operational`) SYSTEM 권한으로 `tscon <세션ID> /dest:console`을 실행해 세션을 콘솔로 돌려보냅니다. 사용자는 **RDP 창을 그냥 닫으면 됩니다.**
+2. Windows-MCP 시작 스크립트를 "끝나면 15초 뒤 다시 시작" 루프로 감쌉니다. 세션이 잠깐 끊긴 순간 시작돼 바로 죽어도 저절로 살아납니다.
+
+#### 평소에는 꺼 두기 (전원 제어 전용 명령)
+
+윈도우 VM은 평소 꺼 두고, 봇이 필요할 때 켜고 끕니다. 봇에게 OpenStack 관리자 권한을 주지 않으려고 **Kolla 호스트에 켜기·끄기·상태만 하는 명령**을 두고, 비서 VM에는 그 명령만 실행되는 SSH 키를 줍니다.
+
+- 명령: [scripts/lab-windows-power](../scripts/lab-windows-power) → Kolla 호스트 `/usr/local/bin/lab-windows-power` (root 소유, 755). `start | stop | status`만 받고 그 밖의 입력은 거부합니다.
+- 비서 VM 전용 키 `~/.ssh/kolla_power`를 Kolla 호스트 `~/.ssh/authorized_keys`에 강제 명령으로 등록합니다.
+
+  ```
+  command="/usr/local/bin/lab-windows-power",from="<ASSISTANT_FIP>",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... lab-windows-power@lab-assistant
+  ```
+
+  비서 VM이 외부로 나갈 때는 Floating IP로 SNAT되므로 `from=`에는 Floating IP를 씁니다.
+- 비서 VM `~/.ssh/config`에 `Host winpower`(Kolla 호스트, `IdentityFile ~/.ssh/kolla_power`)를 둡니다. 사용법은 `ssh winpower status|start|stop`입니다.
+- 검증 (2026-10-21):
+  - 다른 명령(`ssh winpower "cat /etc/kolla/passwords.yml"`)은 `usage`로 거부됩니다.
+  - 셸 접속은 `PTY allocation request failed`로 막힙니다.
+  - `stop`은 87초 걸리고 Windows 이벤트에 정상 종료(1074 → 109 → 13)가 남습니다.
+  - `start` 후 `ssh win`은 약 30초, Windows-MCP 8000 포트는 39초 뒤 열립니다.
+- Hermes는 끊긴 MCP 서버를 5분마다 다시 연결합니다(`_PARKED_RETRY_INTERVAL = 300`). 켠 직후에는 `ssh win`을 먼저 쓰고, GUI 도구는 몇 분 뒤에 씁니다. 바로 쓰려면 Discord에서 `/reload-mcp`를 보냅니다.
+- 봇 규칙(SOUL.md, CLAUDE.md):
+  - 작업 전에 `status`를 보고 꺼져 있으면 `start`합니다.
+  - 작업이 끝나면 `query user`로 RDP 세션을 확인해 없으면 `stop`, 있으면 끌지 묻습니다.
 
 #### Windows-MCP 도구 21개와 승인
 

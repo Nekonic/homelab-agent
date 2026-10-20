@@ -1,0 +1,56 @@
+#!/bin/bash
+# lab-windows 전원 제어 전용 명령 (Kolla 호스트에 설치: /usr/local/bin/lab-windows-power)
+#
+# 비서 VM의 전용 SSH 키에 authorized_keys "command=" 로 묶어서, 그 키로는
+# 이 명령의 start | stop | status 외에는 아무것도 할 수 없게 합니다.
+#   command="/usr/local/bin/lab-windows-power",from="<ASSISTANT_FIP>",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... lab-windows-power
+#
+# 사용 (비서 VM):  ssh winpower status | start | stop
+set -euo pipefail
+
+VM=lab-windows
+ACTION="${SSH_ORIGINAL_COMMAND:-${1:-}}"
+ACTION="${ACTION//[^a-z]/}"   # 영문 소문자 외 문자 제거 (인자 주입 방지)
+
+case "$ACTION" in
+  start|stop|status) ;;
+  *) echo "usage: start | stop | status"; exit 2 ;;
+esac
+
+set -a
+# shellcheck disable=SC1090
+source <(sudo -n cat /etc/kolla/admin-openrc.sh)
+set +a
+E=$(env | grep '^OS_' | sed 's/^/-e /' | tr '\n' ' ')
+os() { sudo -n docker exec $E kolla_toolbox openstack "$@"; }
+
+state() { os server show "$VM" -f value -c status; }
+
+wait_for() {  # wait_for <STATUS> <timeout_sec>
+  local want=$1 limit=$2 t=0 s
+  while :; do
+    s=$(state)
+    [ "$s" = "$want" ] && { echo "$VM: $s"; return 0; }
+    [ $t -ge "$limit" ] && { echo "$VM: $s (timeout waiting for $want)"; return 1; }
+    sleep 5; t=$((t + 5))
+  done
+}
+
+case "$ACTION" in
+  status)
+    echo "$VM: $(state)"
+    ;;
+  start)
+    s=$(state)
+    if [ "$s" = "ACTIVE" ]; then echo "$VM: already ACTIVE"; exit 0; fi
+    os server start "$VM"
+    wait_for ACTIVE 120
+    echo "Windows 부팅·자동 로그온까지 약 1분, Windows-MCP 재연결까지 최대 5분 걸립니다. ssh win 은 부팅 직후부터 쓸 수 있습니다."
+    ;;
+  stop)
+    s=$(state)
+    if [ "$s" = "SHUTOFF" ]; then echo "$VM: already SHUTOFF"; exit 0; fi
+    os server stop "$VM"     # ACPI 종료 요청 → Windows 정상 종료 (nova shutdown_timeout 후 강제)
+    wait_for SHUTOFF 240
+    ;;
+esac

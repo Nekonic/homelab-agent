@@ -80,7 +80,9 @@ ASCII 버전:
 |---|---|
 | [scripts/ubuntu-cloud-config.yaml](scripts/ubuntu-cloud-config.yaml) | Ubuntu VM 공통 cloud-init user_data |
 | [scripts/windows-userdata.ps1](scripts/windows-userdata.ps1) | Windows 첫 부팅 스크립트 (Cloudbase-Init) |
-| [scripts/windows-autologon.ps1](scripts/windows-autologon.ps1) | Windows 자동 로그온 (LSA 비밀 저장, Windows-MCP용) |
+| [scripts/windows-autologon.ps1](scripts/windows-autologon.ps1) | Windows 자동 로그온 (전원 끄고 켜도 로그온, Windows-MCP용) |
+| [scripts/windows-rdp-autoconsole.ps1](scripts/windows-rdp-autoconsole.ps1) | RDP 창을 닫으면 세션을 콘솔로 자동 복귀 + Windows-MCP 재시작 루프 |
+| [scripts/lab-windows-power](scripts/lab-windows-power) | Kolla 호스트용 lab-windows 전원 제어 명령 (start/stop/status만) |
 | [scripts/gns3_server.conf.example](scripts/gns3_server.conf.example) | GNS3 server 설정 템플릿 |
 | [scripts/gns3server.service](scripts/gns3server.service) | GNS3 server systemd 유닛 |
 | [scripts/hermes/](scripts/hermes/) | Hermes 설정·`.env` 예시, netmiko 설정, Windows-MCP 설치 스크립트 |

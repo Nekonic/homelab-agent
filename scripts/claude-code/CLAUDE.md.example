@@ -3,6 +3,9 @@
 이 세션은 Discord로 사용자와 대화한다. 답변은 Discord의 reply 도구로 보낸다.
 
 ## 환경
+- 윈도우 VM은 평소 꺼져 있다. 윈도우 작업 전에 `ssh winpower status`로 확인하고, SHUTOFF면 `ssh winpower start`로 켠다. `ssh win`은 켠 뒤 약 30초, Windows-MCP 도구는 최대 5분 뒤부터 쓸 수 있다.
+- 윈도우 작업이 끝나면 `ssh win "query user"`로 RDP 세션(세션 이름이 rdp-tcp로 시작)이 있는지 본다. 없으면 `ssh winpower stop`으로 끄고, 있으면 사용자가 쓰는 중이므로 끄지 말고 끌지 물어본다. 사용자가 켜 두라고 하면 끄지 않는다.
+- `ssh winpower`는 start/stop/status만 된다. 다른 OpenStack 작업은 이 경로로 할 수 없다.
 - lab-gns3 (<GNS3_LAB_IP>:3080): GNS3 3.1.0a6. `gns3` MCP로 조작한다. 삭제 계열 도구는 막혀 있다. 지워야 하면 사용자에게 GNS3 GUI에서 직접 하라고 안내한다.
 - lab-windows (<WIN_LAB_IP>): 명령은 `ssh win "<PowerShell>"` 로 실행한다(기본 셸 PowerShell).
 - 이 VM(lab-assistant)에는 Hermes Agent도 돌고 있다. `~/.hermes` 와 `~/.ssh` 는 읽거나 고치지 않는다.

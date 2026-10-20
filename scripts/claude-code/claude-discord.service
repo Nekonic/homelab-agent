@@ -1,0 +1,15 @@
+[Unit]
+Description=Claude Code with Discord channel (tmux session: claude-discord)
+After=network-online.target
+
+[Service]
+Type=forking
+Environment=PATH=%h/.local/bin:%h/.bun/bin:/usr/local/bin:/usr/bin:/bin
+WorkingDirectory=%h/claude-work
+ExecStart=/usr/bin/tmux new-session -d -s claude-discord -c %h/claude-work "claude --channels plugin:discord@claude-plugins-official"
+ExecStop=/usr/bin/tmux kill-session -t claude-discord
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

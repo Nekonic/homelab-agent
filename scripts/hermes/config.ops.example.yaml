@@ -1,0 +1,129 @@
+# Hermes Agent v0.22.x — "ops" profile excerpt (= default profile, ~/.hermes/config.yaml)
+# Only the keys this homelab changes from the shipped template. Merge into the template;
+# do not replace the whole file (keep _config_version etc.).
+# Secrets are referenced as ${VAR} and live in ~/.hermes/.env (see ops.env.example).
+
+model:
+  provider: "openai-codex"        # ChatGPT plan (Codex OAuth) — login: `hermes auth add openai-codex`
+  default: "gpt-5.6-terra"        # PLACEHOLDER: confirm the ids your plan exposes with `hermes model`
+  # no base_url here (a leftover openrouter base_url would mis-route openai-codex)
+
+fallback_providers:               # tried in order when the primary fails / is rate-limited
+  - provider: openrouter
+    model: anthropic/claude-sonnet-5.5   # PLACEHOLDER: any tool-calling model on openrouter.ai/models
+  - provider: opencode-zen
+    model: deepseek-v4.1-flash-free      # zero-retention free model (opencode.ai/docs/zen → Privacy)
+fallback:
+  min_switch_reset_seconds: 180   # primary reset < 3 min → wait instead of switching
+
+auth:
+  adopt_external_logins: false    # never borrow ~/.codex or Claude Code logins
+
+approvals:
+  mode: manual                    # always ask on dangerous commands
+  timeout: 300
+  cron_mode: deny
+  single_query_mode: deny
+  unattended_mode: deny
+  mcp_reload_confirm: true
+  destructive_slash_confirm: true
+  deny:                           # fnmatch, case-insensitive, checked before approvals/yolo
+    - '*Format-Volume*'
+    - '*diskpart*'
+    - '*Remove-Item*-Recurse*'
+    - '*Clear-Disk*'
+    - '*Initialize-Disk*'
+    - '*Remove-Partition*'
+    - '*Stop-Computer*'
+    - '*Restart-Computer*'
+    - '*bcdedit*'
+    - '*vssadmin*delete*'
+    - '*cipher*/w*'
+    - '*mkfs*'
+    - 'dd if=* of=/dev/*'
+    - '*shutdown*'
+    - '*poweroff*'
+    - '*reboot*'
+    - 'rm -rf ~*'
+    - 'rm -rf /*'
+    - 'sudo rm *'
+    - '*chmod -R 777*'
+    - '*curl*|*sh*'
+    - '*wget*|*sh*'
+    - '*curl*|*python*'
+    - '*irm*|*iex*'
+    - '*iwr*|*iex*'
+    - '*Invoke-WebRequest*|*Invoke-Expression*'
+    - '*Invoke-RestMethod*|*Invoke-Expression*'
+    - '*ssh*rm -rf*'
+    - '*ssh*-R *'
+    - '*ssh*-D *'
+    - '*ssh-keygen*'
+    - '*authorized_keys*'
+    - '*/.hermes/.env*'
+    - '*/.hermes/profiles/*/.env*'
+    - '*lab-secrets*'
+    - '*/.ssh/id_*'
+    - 'git push --force*'
+    - '*openstack*delete*'
+
+security:
+  allow_private_urls: false       # SSRF guard stays ON (MCP servers are not affected by it)
+  allow_lazy_installs: false      # no package installs triggered from chat
+
+terminal:
+  cwd: "/home/ubuntu/hermes-work/ops"
+
+unauthorized_dm_behavior: ignore  # no pairing codes for strangers
+
+agent:
+  bot_mode_protocol: false        # no bot-to-bot protocol / message_agent
+
+discord:
+  require_mention: true
+  allow_bots: none
+  history_backfill: false
+  ignored_channels: ['*']         # ops answers DMs only (also DISCORD_IGNORED_CHANNELS=* in .env)
+
+platform_toolsets:
+  cli: [hermes-cli]
+  discord: [terminal, file, web, vision, todo, memory, session_search, clarify, skills,
+            gns3, windows, vnc, netmiko]   # listing MCP server names = allowlist of servers
+
+mcp_servers:
+  gns3:
+    url: http://<GNS3_LAB_IP>:3080/v3/mcp/transport/sse
+    transport: sse
+    headers:
+      Authorization: Bearer ${GNS3_API_KEY}
+    trust: untrusted              # every non-readOnly tool call needs approval
+    timeout: 120
+    connect_timeout: 30
+    tools:
+      exclude: ['*_delete', image_prune, snapshot_restore, node_file_write]
+      resources: false
+      prompts: false
+  windows:
+    url: http://<WIN_LAB_IP>:8000/mcp   # Windows-MCP streamable-http
+    headers:
+      Authorization: Bearer ${WINDOWS_MCP_AUTH_KEY}
+    trust: untrusted
+    timeout: 180
+    connect_timeout: 30
+    tools: {resources: false, prompts: false}
+  vnc:                            # fallback for login/UAC/secure-desktop screens
+    command: /usr/local/bin/mcp-vnc
+    env:
+      VNC_HOST: "<WIN_LAB_IP>"
+      VNC_PORT: "5900"
+      VNC_PASSWORD: ${VNC_PASSWORD}
+    trust: untrusted
+    timeout: 120
+    tools: {resources: false, prompts: false}
+  netmiko:
+    command: /home/ubuntu/.venvs/netmiko-mcp/bin/netmiko-mcp
+    env:
+      NETMIKO_MCP_CONFIG: /home/ubuntu/.config/netmiko-mcp/netmiko-mcp.yml
+    trust: untrusted
+    timeout: 300
+    tools: {resources: false, prompts: false}

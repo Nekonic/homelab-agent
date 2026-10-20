@@ -1,0 +1,13 @@
+#cloud-config
+# lab-gns3 / lab-assistant 공통 user_data
+package_update: true
+packages:
+  - qemu-guest-agent
+  - curl
+  - git
+  - jq
+  - tmux
+  - unzip
+timezone: Asia/Seoul
+runcmd:
+  - [systemctl, enable, --now, qemu-guest-agent]

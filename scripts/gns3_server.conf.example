@@ -1,0 +1,53 @@
+# GNS3 server 3.1.0a6 설정 템플릿
+# 위치: /home/gns3/.config/GNS3/3.1/gns3_server.conf  (owner gns3, chmod 600)
+# <...> 자리표시자를 채운 사본은 저장소에 커밋하지 마세요.
+#   <JWT_SECRET>            : openssl rand -hex 32
+#   <GNS3_PASSWORD>         : 관리자 비밀번호 (컨트롤러 DB 최초 생성 시에만 적용)
+#   <COMPUTE_PASSWORD>      : openssl rand -hex 16
+#   <GNS3_FIP>              : lab-gns3 Floating IP (예: 192.168.0.201)
+#   <GNS3_LAB_IP>           : lab-gns3 lab-net IP (예: 10.10.0.x)
+
+[Controller]
+jwt_secret_key = <JWT_SECRET>
+default_admin_username = admin
+default_admin_password = <GNS3_PASSWORD>
+
+[Server]
+host = 0.0.0.0
+port = 3080
+secrets_dir = /home/gns3/.config/GNS3/secrets
+images_path = /home/gns3/GNS3/images
+projects_path = /home/gns3/GNS3/projects
+appliances_path = /home/gns3/GNS3/appliances
+symbols_path = /home/gns3/GNS3/symbols
+configs_path = /home/gns3/GNS3/configs
+report_errors = False
+
+console_start_port_range = 5000
+console_end_port_range = 5100
+; 3.x 기본값은 False. 원격 GUI에서 장비 콘솔을 열려면 True
+allow_remote_console = True
+vnc_console_start_port_range = 5900
+vnc_console_end_port_range = 5999
+udp_start_port_range = 20000
+udp_end_port_range = 30000
+
+enable_http_auth = True
+compute_username = gns3
+compute_password = <COMPUTE_PASSWORD>
+allowed_interfaces = ens3,virbr0
+
+; 내장 MCP: DNS rebinding 보호. 클라이언트가 접속하는 host:port를 모두 나열
+mcp_enable_dns_rebinding_protection = True
+mcp_allowed_hosts = 127.0.0.1:*,localhost:*,<GNS3_FIP>:*,<GNS3_LAB_IP>:*
+mcp_allowed_origins = http://127.0.0.1:*,http://localhost:*,http://<GNS3_FIP>:*,http://<GNS3_LAB_IP>:*
+
+[Qemu]
+enable_hardware_acceleration = True
+require_hardware_acceleration = True
+monitor_host = 127.0.0.1
+ovmf_firmware_dir = /usr/share/OVMF
+
+[WebWireshark]
+; docker가 필요하므로 비활성화
+enabled = False

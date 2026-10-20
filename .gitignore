@@ -1,0 +1,30 @@
+# 비밀값 — 저장소에 절대 커밋하지 않음
+*.env
+.env*
+!*.env.example
+secrets/
+lab-secrets*
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+admin-openrc*.sh
+clouds.yaml
+
+# 값을 채운 스크립트 사본
+*.local.ps1
+*.local.yaml
+*.local.conf
+gns3_server.conf
+
+# 이미지/대용량
+*.qcow2
+*.iso
+*.img
+*.vhdx
+
+# OS/에디터
+.DS_Store
+*.swp
+.vscode/
+.idea/

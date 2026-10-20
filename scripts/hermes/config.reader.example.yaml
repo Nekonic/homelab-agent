@@ -1,0 +1,42 @@
+# Hermes Agent v0.22.x — "reader" profile excerpt (~/.hermes/profiles/reader/config.yaml)
+# Created with:  hermes profile create reader --no-skills --description "..."
+# Same model / fallback / auth / approvals / security / discord blocks as config.ops.example.yaml,
+# plus the restrictions below. Reader reads untrusted content (web pages, chat) and therefore
+# gets NO shell, files, code execution, browser, or MCP servers.
+
+model:
+  provider: "openai-codex"        # needs its own login: `hermes -p reader auth add openai-codex`
+  default: "gpt-5.6-terra"        # PLACEHOLDER (falls back to OpenRouter/Zen if not logged in)
+
+terminal:
+  cwd: "/home/ubuntu/hermes-work/reader"
+
+platform_toolsets:
+  cli:     [web, vision, todo, memory, session_search, clarify, no_mcp]
+  discord: [web, vision, todo, memory, session_search, clarify, no_mcp]   # no_mcp = no MCP servers
+
+agent:
+  bot_mode_protocol: false
+  disabled_toolsets:              # applied after platform_toolsets → always removed
+    - terminal
+    - code_execution
+    - browser
+    - file
+    - computer_use
+    - delegation
+    - cronjob
+    - skills
+    - image_gen
+    - video_gen
+    - discord_admin
+    - kanban
+    - connections
+
+discord:
+  require_mention: true
+  allow_bots: none                # ignore other bots (incl. the ops bot)
+  history_backfill: false
+
+unauthorized_dm_behavior: ignore
+
+mcp_servers: {}

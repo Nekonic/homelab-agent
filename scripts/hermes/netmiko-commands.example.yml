@@ -1,0 +1,70 @@
+---
+# Default-deny allowlist. Only commands matching allowed_commands are sent.
+# netmiko-mcp 0.2.0 exposes only show-style tools (send_show_command*); there is no
+# config-mode tool, so configuration changes are NOT possible through this server.
+allowed_commands:
+  # Cisco IOS / IOS-XE / NX-OS / Arista EOS (read-only)
+  - "show version"
+  - "show clock"
+  - "show inventory"
+  - "show interfaces*"
+  - "show ip interface*"
+  - "show ipv6 interface*"
+  - "show interface status"
+  - "show ip route*"
+  - "show ipv6 route*"
+  - "show ip ospf*"
+  - "show ip bgp*"
+  - "show bgp*"
+  - "show ip eigrp*"
+  - "show vlan*"
+  - "show mac address-table*"
+  - "show spanning-tree*"
+  - "show cdp neighbors*"
+  - "show lldp neighbors*"
+  - "show ip arp*"
+  - "show arp*"
+  - "show logging*"
+  - "show processes cpu*"
+  - "show environment*"
+  # Huawei VRP / H3C Comware
+  - "display version"
+  - "display interface*"
+  - "display ip interface*"
+  - "display ip routing-table*"
+  - "display ospf*"
+  - "display bgp*"
+  - "display vlan*"
+  - "display mac-address*"
+  - "display lldp neighbor*"
+  - "display arp*"
+  - "display logbuffer*"
+  # Explicitly allowed non-show (exec) commands go here, one exact string each.
+  # Keep this empty unless you really need it. Examples (NOT enabled):
+  # - "write memory"
+  # - "copy running-config startup-config"
+
+denied_commands:
+  # configs contain secrets/hashes; tech-support is huge
+  - "show running-config*"
+  - "show startup-config*"
+  - "show run*"
+  - "show start*"
+  - "show tech*"
+  - "show archive*"
+  - "display current-configuration*"
+  - "display saved-configuration*"
+  # never: config/reload/erase/debug/clear
+  - "configure*"
+  - "conf*"
+  - "reload*"
+  - "erase*"
+  - "write erase*"
+  - "delete*"
+  - "format*"
+  - "debug*"
+  - "undebug*"
+  - "clear*"
+  - "reset*"
+  - "system-view*"
+  - "request*"

@@ -171,7 +171,53 @@ ssh master@<KOLLA_HOST> 'grep ^WIN_ADMIN_PASSWORD= ~/lab-secrets.env | cut -d= -
 
 `trust: untrusted`로 등록하면 읽기 전용이 아닌 호출(`readOnlyHint`가 정확히 true가 아닌 것)은 **실행 전에 매번 승인**을 받습니다(Hermes `tools/mcp_tool.py`의 trust-tier gating).
 
-주의: `PowerShell`, `Registry`, `FileSystem`, `Process` 도구의 인자는 `approvals.deny` 패턴 검사를 거치지 않습니다. deny 패턴은 Hermes 자체 터미널 명령에만 적용됩니다.
+주의: Windows-MCP 도구의 인자는 `approvals.deny` 패턴 검사를 거치지 않습니다. deny 패턴은 Hermes 자체 터미널 명령에만 적용됩니다.
+
+그래서 **명령 실행은 SSH로만** 하도록 바꿨습니다.
+
+| 구분 | 경로 | 거치는 검사 |
+|---|---|---|
+| 명령 실행 | 터미널에서 `ssh win "<PowerShell>"` | `approvals.deny` 패턴 + 위험 명령 승인 |
+| 화면 확인·클릭·입력 | Windows-MCP (19개, `PowerShell`·`Registry` 제외) | 쓰기 호출마다 승인 (`trust: untrusted`) |
+| 로그온·UAC 화면 | `vnc` | 쓰기 호출마다 승인 |
+
+1. 비서 VM에 전용 키를 만듭니다. 에이전트가 무인으로 써야 하므로 암호 없음.
+
+   ```bash
+   ssh-keygen -t ed25519 -N "" -C "hermes-ops@lab-assistant" -f ~/.ssh/win_ops
+   ```
+
+2. 윈도우의 `C:\ProgramData\ssh\administrators_authorized_keys`에 공개키를 **`from="<ASSISTANT_LAB_IP>"` 조건을 붙여** 추가하고 ACL을 다시 잡습니다. 이 키는 비서 VM 주소에서만 통합니다.
+
+   ```powershell
+   Add-Content C:\ProgramData\ssh\administrators_authorized_keys 'from="<ASSISTANT_LAB_IP>" ssh-ed25519 AAAA... hermes-ops@lab-assistant' -Encoding ascii
+   icacls C:\ProgramData\ssh\administrators_authorized_keys /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"
+   ```
+
+3. 비서 VM `~/.ssh/config`에 별칭을 둡니다. 그다음 `ssh-keyscan -t ed25519 <WIN_LAB_IP> >> ~/.ssh/known_hosts`로 호스트 키를 등록합니다.
+
+   ```
+   Host win
+     HostName <WIN_LAB_IP>
+     User Admin
+     IdentityFile ~/.ssh/win_ops
+     IdentitiesOnly yes
+   ```
+
+4. `config.yaml`의 `windows` 서버에 `tools.exclude: [PowerShell, Registry]`를 넣습니다. `hermes mcp list`에 `-2 excluded`로 보이면 적용된 것입니다. `hermes mcp test windows`는 서버의 원래 목록(21개)을 보여 주므로 확인용이 아닙니다.
+
+#### 봇이 규칙을 알게 하기 (SOUL.md)
+
+도구를 빼는 것만으로도 강제는 되지만, 봇이 어떤 경로를 써야 하는지 알아야 헤매지 않습니다.
+
+- Hermes가 **모든 세션에서 항상 읽는 파일은 `~/.hermes/SOUL.md`뿐**입니다. `AGENTS.md`는 작업 디렉터리 기준이라 Discord 세션에서는 보장되지 않습니다.
+- `SOUL.md` 끝에 운영 규칙을 붙였습니다: [scripts/hermes/SOUL.ops.rules.example.md](../scripts/hermes/SOUL.ops.rules.example.md).
+- reader 프로필의 SOUL.md에는 넣지 않습니다. reader에게 내부망 구조를 알려줄 이유가 없습니다.
+- 수정한 뒤 `systemctl --user restart hermes-gateway`로 재시작합니다.
+
+검증 (2026-10-21): "윈도우 VM 호스트 이름과 버전 알려줘"라고 물으면 봇이 `ssh win`으로 `hostname`과 `Get-ComputerInfo`를 실행해 답합니다.
+
+`Get-ComputerInfo`의 `WindowsProductName`은 Windows 11에서도 "Windows 10 Pro"로 나옵니다. 빌드 번호(26200 이상)로 판단하세요.
 
 ### 4. mcp-vnc 폴백 (lab-assistant)
 

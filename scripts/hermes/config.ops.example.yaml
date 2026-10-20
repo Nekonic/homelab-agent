@@ -108,7 +108,10 @@ mcp_servers:
     trust: untrusted
     timeout: 180
     connect_timeout: 30
-    tools: {resources: false, prompts: false}
+    tools:
+      exclude: [PowerShell, Registry]   # commands go through `ssh win` so approvals.deny applies
+      resources: false
+      prompts: false
   vnc:                            # fallback for login/UAC/secure-desktop screens
     command: /usr/local/bin/mcp-vnc
     env:

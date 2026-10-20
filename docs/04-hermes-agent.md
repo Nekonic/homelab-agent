@@ -167,8 +167,8 @@ systemctl --user is-active hermes-gateway.service    # inactive (토큰 넣기 �
 
    OpenRouter 폴백 모델(`anthropic/claude-sonnet-5.5`)도 자리표시자입니다. 원하는 도구 호출 지원 모델로 바꾸세요.
 
-3. **Discord 봇 2개 생성** (Developer Portal → New Application → Bot → Reset Token, **Message Content Intent** 켜기, Installation에서 Guild Install + `bot`/`applications.commands`, Send Messages·Read Message History 등 권한). 하나는 ops, 하나는 reader.
-4. **토큰과 본인 ID 입력** (Discord 개발자 모드 → 내 프로필 우클릭 → ID 복사)
+3. **Discord 봇 2개 생성.** 아래 [Discord 봇 만들기](#discord-봇-만들기-ops--reader) 절차를 ops용, reader용으로 한 번씩 따라 합니다.
+4. **토큰과 본인 ID 입력.** 본인 ID는 Discord 설정 → 고급 → 개발자 모드를 켠 뒤, 내 프로필을 우클릭해서 **ID 복사**로 얻습니다.
 
    ```bash
    nano ~/.hermes/.env                  # DISCORD_BOT_TOKEN=<OPS 봇>  DISCORD_ALLOWED_USERS=<내 ID>
@@ -184,6 +184,90 @@ systemctl --user is-active hermes-gateway.service    # inactive (토큰 넣기 �
    ```
 
 6. ops 봇에는 **DM으로만** 말을 겁니다(서버 채널은 무시). reader 봇은 서버 채널에서 `@멘션`으로 부릅니다.
+
+### Discord 봇 만들기 (ops / reader)
+
+[Discord Developer Portal](https://discord.com/developers/applications)에서 봇 두 개를 같은 절차로 만듭니다. 이름은 구분되게 짓습니다(예: `lab-ops`, `lab-reader`). 차이는 **권한 목록뿐**입니다.
+
+화면 이름은 한국어 UI 기준이고, 괄호 안이 영어 UI 이름입니다. 2026-10 기준으로 확인했습니다. 초대 설정은 **OAuth2 메뉴가 아니라 설치(Installation) 메뉴**에서 합니다. OAuth2 메뉴(Client Secret, 리디렉션, URL 생성기)는 건드릴 필요가 없습니다.
+
+#### 1) 앱 생성
+
+오른쪽 위 **New Application** → 이름 입력 → 약관 동의 → **Create**.
+
+#### 2) 설치 (Installation) 메뉴
+
+1. **설치 콘텍스트 (Installation Contexts)**
+   - `길드 설치 (Guild Install)`만 체크합니다.
+   - `사용자 설치 (User Install)`는 해제합니다. 새 앱은 둘 다 켜져 있습니다.
+2. **설치 링크 (Install Link)**: `Discord 제공 링크 (Discord Provided Link)`를 선택합니다.
+3. **기본 설치 설정 (Default Install Settings) → 길드 설치**
+   - **스코프**: `applications.commands`, `bot` 두 개를 넣습니다. `applications.commands`는 슬래시 명령과 승인 버튼에, `bot`은 봇 사용자에 필요합니다.
+   - `bot`을 넣으면 **권한** 칸이 나타납니다. 봇별로 아래 표대로 고릅니다. 칸에 글자를 입력하면 목록이 걸러집니다.
+4. 변경 사항을 **저장**합니다.
+
+| 권한 (한국어 UI) | 영어 UI | ops | reader | 용도 |
+|---|---|:-:|:-:|---|
+| 채널 보기 | View Channels | ✅ | ✅ | 필수 |
+| 메시지 보내기 | Send Messages | ✅ | ✅ | 필수 |
+| 링크 임베드 | Embed Links | ✅ | ✅ | 필수. 응답과 승인 카드가 임베드로 표시됨 |
+| 파일 첨부 | Attach Files | ✅ | ✅ | 필수. 스크린샷 등 파일 전송 |
+| 메시지 기록 보기 | Read Message History | ✅ | ✅ | 필수 |
+| 공개 스레드 만들기 | Create Public Threads | | ✅ | 멘션할 때마다 스레드 생성 (`auto_thread`) |
+| 스레드에서 메시지 보내기 | Send Messages in Threads | | ✅ | 스레드 안에서 답변 |
+| 반응 추가 | Add Reactions | | ✅ | 처리 상태 표시 👀 ✅ ❌ |
+
+ops는 DM으로만 대화하므로 필수 5개만 줍니다. 서버에는 DM을 열기 위해서만 들어갑니다.
+
+**ops 설정 화면:**
+
+![ops 봇 기본 설치 설정: 스코프 applications.commands, bot / 권한 5개](images/discord-install-ops.png)
+
+**reader 설정 화면:**
+
+![reader 봇 기본 설치 설정: 스코프 applications.commands, bot / 권한 8개](images/discord-install-reader.png)
+
+**절대 주지 말 권한**
+
+- 관리자 (Administrator)
+- 감사 로그 보기
+- 메시지 관리, 메시지 고정
+- 채널·역할·웹후크·서버 관리 등 "~관리"로 끝나는 권한 전부
+- @everyone 멘션
+- 추방, 차단
+- 말하기, 동영상 등 음성 권한
+
+#### 3) 봇 (Bot) 메뉴
+
+1. **Privileged Gateway Intents**
+   - `Message Content Intent`: **켜기 (필수).** 꺼져 있으면 Discord가 연결을 거부해서 봇이 오프라인으로 남습니다.
+   - `Server Members Intent`: **켜기.** Hermes 문서에서 필수로 표시합니다.
+   - `Presence Intent`: 끄기.
+2. **Reset Token** → 토큰을 복사합니다. 이 화면을 벗어나면 다시 볼 수 없습니다. 이 토큰을 `.env`의 `DISCORD_BOT_TOKEN`에 넣습니다.
+   - ops 토큰은 `~/.hermes/.env`, reader 토큰은 `~/.hermes/profiles/reader/.env`에 넣습니다.
+   - 같은 토큰을 두 프로필에 넣으면 두 번째 게이트웨이가 `duplicate_credential`로 멈춥니다.
+
+#### 4) 서버에 추가
+
+1. 설치 메뉴의 **설치 링크** 칸에서 링크를 복사해 브라우저로 엽니다.
+2. **서버에 추가**를 누르고 내 서버를 고른 뒤 승인합니다.
+3. 나만 있는 **비공개 서버**를 따로 만들어 쓰기를 권장합니다.
+
+#### 5) (선택) 추가 후 잠그기
+
+다른 사람이 이 봇을 자기 서버에 넣지 못하게 막습니다.
+
+1. 설치 메뉴에서 **설치 링크**를 `없음 (None)`으로 바꿉니다. 이걸 먼저 해야 다음 단계가 됩니다.
+2. 봇 메뉴에서 **Public Bot**을 끕니다.
+
+#### 6) (선택) reader를 채널 하나로 묶기
+
+1. 서버 설정 → 역할에서 reader 봇 역할의 **채널 보기**를 끕니다.
+2. `#reader` 채널 → 채널 편집 → 권한에서 그 역할에만 채널 보기, 메시지 보내기, 스레드 권한을 허용합니다.
+
+이렇게 하면 reader는 다른 채널을 아예 읽지 못합니다.
+
+출처: [Discord: Building your first Discord Bot](https://docs.discord.com/developers/quick-start/getting-started) · [Discord: Developing a User-Installable App (설치 콘텍스트/설치 링크)](https://docs.discord.com/developers/tutorials/developing-a-user-installable-app) · [Hermes: Discord](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/discord)
 
 ## 검증
 

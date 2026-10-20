@@ -140,14 +140,38 @@ Hermes 설정:
     tools: {resources: false, prompts: false}
 ```
 
-#### 자동 로그온은 사용자 결정
+#### 자동 로그온 (재부팅 후에도 Windows-MCP가 항상 뜨게)
 
-README는 자동 로그온을 요구하지 않습니다. 그래서 **설정하지 않았습니다.** 선택지:
+Windows-MCP는 데스크톱 세션이 있어야 동작합니다. 예약 작업은 Admin이 로그온할 때 실행되므로, 아무도 로그온하지 않으면 8000 포트가 열리지 않습니다. 이때 `hermes mcp test windows`는 30초 타임아웃으로 실패합니다.
 
-- (A) 필요할 때 RDP/VNC로 한 번 로그온 → 예약 작업이 서버를 띄움(로그오프하면 멈춤, **연결 끊기**는 유지)
-- (B) Windows 자동 로그온(Sysinternals Autologon 등, 비밀번호가 LSA 비밀로 저장됨)을 켜서 재부팅 후에도 항상 동작 — 보안상 트레이드오프이므로 직접 판단
+이 구성에서는 [scripts/windows-autologon.ps1](../scripts/windows-autologon.ps1)로 자동 로그온을 켰습니다.
+
+- 비밀번호는 레지스트리 `DefaultPassword`(평문)가 아니라 **LSA 비밀 저장소**에 넣습니다. Sysinternals Autologon과 같은 방식입니다.
+- 저장하기 전에 비밀번호가 맞는지 검사합니다. 틀린 비밀번호로 저장하면 부팅이 로그온 실패 화면에 멈추기 때문입니다.
+- 화면 보호기 잠금을 끕니다. 잠긴 데스크톱에서는 UI 자동화가 동작하지 않습니다.
+- 공용 바탕화면에 `RDP-disconnect-to-console.cmd`를 만듭니다. RDP로 들어갔다 나올 때 창을 그냥 닫으면 세션이 잠깁니다. 대신 이 파일을 실행하면 세션이 콘솔로 돌아가 잠기지 않습니다.
+
+실행 (Kolla 호스트의 비밀값 파일에서 비밀번호를 파이프로 넘기므로 화면이나 명령줄에 남지 않음):
+
+```bash
+scp -o ProxyJump=ubuntu@<ASSISTANT_FIP> scripts/windows-autologon.ps1 Admin@<WIN_LAB_IP>:C:/Windows/Temp/
+```
+
+```bash
+ssh master@<KOLLA_HOST> 'grep ^WIN_ADMIN_PASSWORD= ~/lab-secrets.env | cut -d= -f2-' | ssh -J ubuntu@<ASSISTANT_FIP> Admin@<WIN_LAB_IP> 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\Windows\Temp\windows-autologon.ps1 -User Admin; Remove-Item C:\Windows\Temp\windows-autologon.ps1'
+```
+
+검증: 재부팅(`shutdown /r /t 5`) 후 1분쯤 지나면 `query user`에 `console ... Active`가 보이고, `hermes mcp test windows`에 `Tools discovered: 21`이 나옵니다. 2026-10-21 확인. 해제는 `-Disable`로 합니다.
+
+트레이드오프: VM 콘솔(Horizon/VNC)에 접근할 수 있는 사람은 로그온된 데스크톱을 바로 씁니다. 이 VM은 보안 그룹으로 VNC·SSH를 비서 VM에서만 허용하므로 그 범위 안에서만 감수합니다.
 
 로그온/UAC 보안 데스크톱처럼 Windows-MCP가 못 보는 화면은 `vnc`로 처리합니다.
+
+#### Windows-MCP 도구 21개와 승인
+
+`trust: untrusted`로 등록하면 읽기 전용이 아닌 호출(`readOnlyHint`가 정확히 true가 아닌 것)은 **실행 전에 매번 승인**을 받습니다(Hermes `tools/mcp_tool.py`의 trust-tier gating).
+
+주의: `PowerShell`, `Registry`, `FileSystem`, `Process` 도구의 인자는 `approvals.deny` 패턴 검사를 거치지 않습니다. deny 패턴은 Hermes 자체 터미널 명령에만 적용됩니다.
 
 ### 4. mcp-vnc 폴백 (lab-assistant)
 

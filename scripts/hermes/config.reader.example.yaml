@@ -6,7 +6,7 @@
 
 model:
   provider: "openai-codex"        # needs its own login: `hermes -p reader auth add openai-codex`
-  default: "gpt-5.6-terra"        # PLACEHOLDER (falls back to OpenRouter/Zen if not logged in)
+  default: "gpt-5.6-terra"        # PLACEHOLDER (falls back to OpenRouter if not logged in)
 
 terminal:
   cwd: "/home/ubuntu/hermes-work/reader"

@@ -3,7 +3,7 @@
 ## 목적
 
 - `lab-assistant`의 **Hermes Agent v0.22.2**를 실습망 운영용으로 잠급니다.
-- 모델: **ChatGPT 구독(Codex OAuth, `openai-codex`) 주력 → OpenRouter → OpenCode Zen 무료(무보존) 모델** 순으로 폴백
+- 모델: **ChatGPT 구독(Codex OAuth, `openai-codex`) 주력 → OpenRouter 무료 모델** 순으로 폴백
 - 승인: `manual` + 사용자 정의 차단 목록(`approvals.deny`), cron/단발/무인 세션은 전부 거부
 - **reader / ops 두 봇으로 분리**
   - `reader`: 웹·비전만. 셸·파일·코드 실행·브라우저·MCP 없음 → 프롬프트 인젝션을 당해도 손발이 없음
@@ -18,7 +18,7 @@ MCP 서버(GNS3, Windows-MCP, mcp-vnc, netmiko) 설치·검증은 [05 문서](05
 - 자리표시자
   - `<ASSISTANT_FIP>`: lab-assistant Floating IP (예: `192.168.0.202`)
   - `<YOUR_DISCORD_USER_ID>`: 본인 Discord 사용자 ID(숫자)
-  - `<OPENROUTER_API_KEY>`, `<OPENCODE_ZEN_API_KEY>`, `<OPS_DISCORD_BOT_TOKEN>`, `<READER_DISCORD_BOT_TOKEN>`
+  - `<OPENROUTER_API_KEY>`, `<OPS_DISCORD_BOT_TOKEN>`, `<READER_DISCORD_BOT_TOKEN>`
 - 설정 키는 **설치된 v0.22.2에 번들된 문서**(`~/.hermes/hermes-agent/website/docs/`)와 설정 템플릿, 소스로 확인했습니다. 온라인 문서(hermes-agent.nousresearch.com)는 버전이 달라 `auth.adopt_external_logins` 같은 항목이 빠져 있을 수 있습니다.
 
 ## 설계: 프로필 구조
@@ -84,8 +84,8 @@ mkdir -p ~/hermes-work/ops ~/hermes-work/reader && chmod 700 ~/hermes-work/*
 | 키 | 값 | 이유 |
 |---|---|---|
 | `auth.adopt_external_logins` | `false` | `~/.codex`, Claude Code 로그인을 빌려 쓰지 않음(회전 refresh 토큰 충돌 방지). Hermes 자체 로그인만 사용 |
-| `model` | `openai-codex` / `gpt-5.6-terra` | ChatGPT Plus 구독. **모델 ID는 자리표시자** — 플랜별 사용 가능 모델은 Hermes 문서에 없음. 로그인 후 `hermes model`로 확인 |
-| `fallback_providers` | openrouter → opencode-zen `deepseek-v4.1-flash-free` | Plus는 5시간/주간 사용 창이 있어 폴백 필수. Zen 무료 모델 중 DeepSeek V4.1 Flash Free / GLM-5.3-Flash Free / MiniMax M3.1 Flash Free는 Zen 문서상 무보존 예외 목록에 없음(Big Pickle, MiMo, Nemotron 등은 학습/로그 사용 → 제외) |
+| `model` | `openai-codex` / `gpt-5.6-terra` | ChatGPT Plus 구독. 2026-10-21에 Plus로 응답 확인. 플랜별 사용 가능 모델은 로그인 후 `hermes model`로 확인 |
+| `fallback_providers` | openrouter `minimax/minimax-m3.1-flash:free` | Plus는 5시간/주간 사용 창이 있어 폴백 필수. OpenRouter는 가입만 하면 카드 없이 키 발급(무료 등급: `:free` 모델 분당 20회·하루 50회, 크레딧 $10 이상 구매 시 하루 1,000회). 도구 호출(`tools`)을 지원하는 `:free` 모델 중에서 고름 |
 | `fallback.min_switch_reset_seconds` | `180` | 한도 해제까지 3분 미만이면 갈아타지 않고 기다림. 폴백은 세션당 1회 전환 |
 | `approvals.mode` | `manual` | 위험 명령은 항상 사람 승인 |
 | `approvals.cron_mode`/`single_query_mode`/`unattended_mode` | `deny` | 사람이 없는 실행 경로는 위험 명령 차단 |
@@ -158,14 +158,20 @@ systemctl --user is-active hermes-gateway.service    # inactive (토큰 넣기 �
    hermes config set model.default <확인한-모델-ID>
    ```
 
-2. **OpenRouter / OpenCode Zen 키**를 두 프로필의 `.env`에 넣습니다.
+2. **OpenRouter 키**를 두 프로필의 `.env`에 넣습니다. [openrouter.ai](https://openrouter.ai) 가입 → Keys에서 발급(카드 불필요).
 
    ```bash
-   nano ~/.hermes/.env                         # OPENROUTER_API_KEY=, OPENCODE_ZEN_API_KEY=
+   nano ~/.hermes/.env                         # OPENROUTER_API_KEY=
    nano ~/.hermes/profiles/reader/.env         # 같은 키 (또는 reader 전용 키)
    ```
 
-   OpenRouter 폴백 모델(`anthropic/claude-sonnet-5.5`)도 자리표시자입니다. 원하는 도구 호출 지원 모델로 바꾸세요.
+   폴백 모델을 바꾸려면 도구 호출을 지원하는 무료 모델 목록을 보고 고릅니다.
+
+   ```bash
+   curl -s https://openrouter.ai/api/v1/models | python3 -c 'import json,sys;[print(m["id"]) for m in json.load(sys.stdin)["data"] if m["id"].endswith(":free") and "tools" in (m.get("supported_parameters") or [])]'
+   ```
+
+   > OpenCode Zen은 쓰지 않습니다. 키 없는 무료 사용은 OpenCode 앱 안에서만 허용되고(다른 도구에서 호출하면 `403 FreeTierError`), API 키는 결제 정보·크레딧 등록 후 발급됩니다(2026-10-21 확인).
 
 3. **Discord 봇 2개 생성.** 아래 [Discord 봇 만들기](#discord-봇-만들기-ops--reader) 절차를 ops용, reader용으로 한 번씩 따라 합니다.
 4. **토큰과 본인 ID 입력.** 본인 ID는 Discord 설정 → 고급 → 개발자 모드를 켠 뒤, 내 프로필을 우클릭해서 **ID 복사**로 얻습니다.

@@ -69,7 +69,7 @@ ASCII 버전:
 | 01 | [docs/01-openstack-reset-and-base.md](docs/01-openstack-reset-and-base.md) | 테넌트 초기화(선택), 네트워크·flavor·SG·이미지·서버 생성 | 완료 |
 | 02 | [docs/02-gns3-server.md](docs/02-gns3-server.md) | GNS3 server 3.1.0a6 + 내장 MCP 설치·검증 | 완료 |
 | 03 | [docs/03-windows-vm.md](docs/03-windows-vm.md) | Windows 11 VM 첫 부팅 자동화(SSH/VNC/RDP), GNS3 GUI 3.1.0a6 | 완료 (GUI 원격 서버 연결은 수동) |
-| 04 | [docs/04-hermes-agent.md](docs/04-hermes-agent.md) | AI 비서 VM: Hermes Agent (ChatGPT Plus → OpenRouter → OpenCode Zen 폴백), reader/ops 봇 분리, 승인 정책 | 완료 (OAuth·API 키·Discord 토큰은 수동) |
+| 04 | [docs/04-hermes-agent.md](docs/04-hermes-agent.md) | AI 비서 VM: Hermes Agent (ChatGPT Plus → OpenRouter 무료 모델 폴백), reader/ops 봇 분리, 승인 정책 | 완료 (OAuth·API 키·Discord 토큰은 수동) |
 | 05 | [docs/05-mcp.md](docs/05-mcp.md) | MCP 연동: GNS3 내장 MCP, Windows-MCP, mcp-vnc(예비), netmiko_mcp | 완료 (Windows-MCP 도구 확인은 로그온 후) |
 | 06 | docs/06-*.md | Claude Code + Discord Channels (Claude 구독), Hermes와 연동 | 작성 예정 |
 | — | [docs/research/2026-10-agent-landscape.md](docs/research/2026-10-agent-landscape.md) | 셀프호스트 AI 비서 에이전트 비교 조사 (2026-10) | 참고 |

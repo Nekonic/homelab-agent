@@ -10,9 +10,7 @@ model:
 
 fallback_providers:               # tried in order when the primary fails / is rate-limited
   - provider: openrouter
-    model: anthropic/claude-sonnet-5.5   # PLACEHOLDER: any tool-calling model on openrouter.ai/models
-  - provider: opencode-zen
-    model: deepseek-v4.1-flash-free      # zero-retention free model (opencode.ai/docs/zen → Privacy)
+    model: minimax/minimax-m3.1-flash:free   # any ':free' model whose supported_parameters include 'tools'
 fallback:
   min_switch_reset_seconds: 180   # primary reset < 3 min → wait instead of switching
 

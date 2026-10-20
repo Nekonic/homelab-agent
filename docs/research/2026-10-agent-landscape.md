@@ -76,7 +76,7 @@
 
 | 영역 | 기존 계획 | 변경·추가 |
 |---|---|---|
-| 비서 | Hermes + ChatGPT OAuth | Hermes + OpenRouter(주) + OpenCode Zen(폴백). `auth.adopt_external_logins: false` |
+| 비서 | Hermes + ChatGPT OAuth | Hermes + ChatGPT Plus(주) + OpenRouter 무료 모델(폴백). `auth.adopt_external_logins: false`. OpenCode Zen은 제외(키 없는 무료 사용은 OpenCode 앱 전용, API 키는 결제 등록 필요) |
 | 역할 분리 | Bot Mode | Bot Mode는 분리 기능이 아님. 읽기 전용 프로필(실행 toolset 끔)과 실행 프로필(manual 승인, 본인 DM만)을 따로 구성하고, 둘 사이 `message_agent`로 원문을 넘기지 않음 |
 | GNS3 | 서드파티 MCP | 내장 MCP(3.1). 내장 GNS3 Copilot은 HITL이 없는 알파라 GUI 보조로만 사용 |
 | 장비 설정 | 콘솔에 `device_config_send` | 콘솔로는 IP·SSH만 부트스트랩. 이후 설정은 [netmiko_mcp](https://github.com/ktbyers/netmiko_mcp)(명령 허용 목록 기반) |

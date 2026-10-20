@@ -7,7 +7,7 @@
 - 승인: `manual` + 사용자 정의 차단 목록(`approvals.deny`), cron/단발/무인 세션은 전부 거부
 - **reader / ops 두 봇으로 분리**
   - `reader`: 웹·비전만. 셸·파일·코드 실행·브라우저·MCP 없음 → 프롬프트 인젝션을 당해도 손발이 없음
-  - `ops`: GNS3·Windows·VNC·netmiko MCP, 수동 승인, **주인 DM만**
+  - `ops`: GNS3·Windows·VNC·netmiko MCP, 수동 승인, 주인만 (DM 또는 서버 채널 `@멘션`)
 - Discord 게이트웨이는 사용자 서비스로 설치만 하고 **토큰이 들어올 때까지 멈춰 둠**
 
 MCP 서버(GNS3, Windows-MCP, mcp-vnc, netmiko) 설치·검증은 [05 문서](05-mcp.md)에 있습니다.
@@ -94,7 +94,7 @@ mkdir -p ~/hermes-work/ops ~/hermes-work/reader && chmod 700 ~/hermes-work/*
 | `security.allow_lazy_installs` | `false` | 채팅 중 패키지 자동 설치 금지 → Discord 의존성은 아래 3단계에서 명시 설치 |
 | `agent.bot_mode_protocol` | `false` | `message_agent`(봇 간 메시지) 주입 끔 |
 | `unauthorized_dm_behavior` | `ignore` | 허용되지 않은 DM에 페어링 코드도 보내지 않음 |
-| `discord.ignored_channels` + `.env DISCORD_IGNORED_CHANNELS=*` | `*` | **ops는 서버 채널을 전부 무시 → DM 전용** |
+| `discord.require_mention` | `true` | 서버 채널에서는 `@멘션`할 때만 답함. DM은 항상 답함. 서버에 다른 사람이 있다면 `DISCORD_ALLOWED_CHANNELS=<채널ID>`로 전용 채널 하나로 묶거나, `DISCORD_IGNORED_CHANNELS=*`로 DM 전용으로 만듦 |
 | `discord.allow_bots` | `none` | 다른 봇(reader 포함)의 메시지 무시 |
 | `platform_toolsets.discord` | terminal, file, web, … + `gns3, windows, vnc, netmiko` | MCP 서버 이름을 적으면 그 서버만 허용(allowlist). browser·code_execution·delegation·cronjob 제외 |
 | `mcp_servers.*.trust` | `untrusted` | `readOnlyHint`가 없는 MCP 도구 호출은 전부 승인 필요(이번 서버들은 주석이 없어 사실상 모든 호출이 승인 대상) |
@@ -189,7 +189,7 @@ systemctl --user is-active hermes-gateway.service    # inactive (토큰 넣기 �
    journalctl --user -u hermes-gateway -f
    ```
 
-6. ops 봇에는 **DM으로만** 말을 겁니다(서버 채널은 무시). reader 봇은 서버 채널에서 `@멘션`으로 부릅니다.
+6. 두 봇 모두 서버 채널에서는 `@봇이름`으로 멘션해야 답합니다. ops는 DM으로도 부를 수 있습니다. 멘션 없이 보낸 채널 메시지는 **로그도 남기지 않고 무시**합니다.
 
 ### Discord 봇 만들기 (ops / reader)
 
@@ -223,7 +223,7 @@ systemctl --user is-active hermes-gateway.service    # inactive (토큰 넣기 �
 | 스레드에서 메시지 보내기 | Send Messages in Threads | | ✅ | 스레드 안에서 답변 |
 | 반응 추가 | Add Reactions | | ✅ | 처리 상태 표시 👀 ✅ ❌ |
 
-ops는 DM으로만 대화하므로 필수 5개만 줍니다. 서버에는 DM을 열기 위해서만 들어갑니다.
+ops는 스레드를 쓰지 않으므로 필수 5개만 줍니다.
 
 **ops 설정 화면:**
 
@@ -296,7 +296,13 @@ hermes doctor | grep -E "discord.py|Codex|OpenRouter"
 
 - **Bot Mode/프로필은 자동 격리가 아님.** 같은 OS 사용자라서 reader에게 `terminal`/`file`을 주면 ops의 `.env`도 읽을 수 있습니다. 도구 자체를 빼는 것이 격리입니다.
 - **ops가 forward된 원문을 받지 않게 하기**: `message_agent`는 데스크톱 Bot Mode가 `profile.yaml`에 `ui_meta: {hermes-bots: …}` 표식을 쓰고 세션 제목이 정확히 `Bot Chat`일 때만 생깁니다. 헤드리스 설치에서는 **그 표식을 만들지 마세요**. 추가로 `agent.bot_mode_protocol: false`, `discord.allow_bots: none`으로 봇 경유 입력을 막았습니다. 단, Hermes에는 "다른 봇이 보낸 원문 수신 금지" 같은 별도 스위치는 없습니다(문서상 `message_agent`는 원문이 아니라 보낸 봇이 다시 쓴 메시지를 전달). **사용자가 reader 출력을 복사해 ops에 붙여 넣는 것은 막을 수 없으므로** 그런 붙여넣기는 하지 마세요.
-- **DM 전용 스위치는 없음.** `DISCORD_IGNORED_CHANNELS=*`(코드상 `*` 지원)로 모든 서버 채널을 무시하게 해서 DM 전용으로 만듭니다.
+- **봇이 메시지에 답이 없음**
+  - 멘션 없이 보낸 채널 메시지와 허용 목록에 없는 사용자의 메시지는 **로그도 남기지 않고 무시**됩니다.
+  - 확인 순서:
+    1. `@봇이름`으로 멘션했는지, 또는 DM인지 확인합니다.
+    2. `~/.hermes/logs/gateway.log`에 `discord connected`가 프로필 수만큼 찍혔는지 확인합니다.
+    3. `DISCORD_ALLOWED_USERS`가 서버 ID나 봇 ID가 아니라 **내 사용자 ID**인지 확인합니다.
+- **DM 전용으로 만들기**: 전용 스위치는 없습니다. `DISCORD_IGNORED_CHANNELS=*`로 모든 서버 채널을 무시하게 하면 DM에만 답합니다. 코드상 `*`를 지원하고 DM은 이 설정에서 예외입니다.
 - **`model.base_url` 잔재**: 템플릿/새 프로필에 `https://openrouter.ai/api/v1`이 들어 있습니다. `openai-codex`로 바꿨다면 반드시 `config unset model.base_url`.
 - **Plus 플랜 모델/한도**: Hermes 문서는 플랜별 모델·쿼터를 설명하지 않습니다. `hermes model`의 목록이 기준이고, 한도에 걸리면 `fallback_providers`로 넘어갑니다(세션당 1회).
 - **`approvals.deny`는 셸 문자열 정책**이지 샌드박스가 아닙니다. `*curl*|*sh*`는 `curl … | sha256sum`도 막습니다(의도된 보수적 설정).

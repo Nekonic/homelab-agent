@@ -81,7 +81,7 @@ discord:
   require_mention: true
   allow_bots: none
   history_backfill: false
-  ignored_channels: ['*']         # ops answers DMs only (also DISCORD_IGNORED_CHANNELS=* in .env)
+  # ignored_channels: ['*']       # DM-only ops (use if the server has other members)
 
 platform_toolsets:
   cli: [hermes-cli]

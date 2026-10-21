@@ -17,11 +17,12 @@ server-side by the Nova policy and the application credential's access rules.
   oslab image list|show, flavor list|show, quota show, limits show
 
 Rules: always --os-cloud lab-agent; no --os-*/--debug/--log-file style global options;
-no server/port directly on the external (provider) network;
-created resources must be named lab-*; exec() with an argument list (no shell).
+no server/port directly on the external (provider) network (values resolved to real IDs);
+created resources must be named lab-* (core names reserved); exec() with an argument list (no shell).
 """
 import os
 import re
+import subprocess
 import sys
 
 HOME = os.path.expanduser("~")
@@ -30,10 +31,20 @@ CLOUDS_YAML = os.path.join(HOME, ".config/openstack/clouds.yaml")
 USERDATA_DIR = os.path.realpath(os.path.join(HOME, "lab-userdata"))
 CLOUD = "lab-agent"
 EXTERNAL_NET = "provider"
-# The external network is also "shared", so Neutron/Nova would let a member put a VM
-# NIC directly on the user's LAN. oslab refuses that: VMs/ports go on lab-* networks
-# or lab-bridge; the LAN is reachable only via router gateway + floating IP.
-EXTERNAL_NET_IDS = {EXTERNAL_NET, "<PROVIDER_NET_ID>"}  # <- openstack network show provider -f value -c id
+# The external network is NOT shared (router:external only), so Neutron already refuses
+# a member port on it. oslab refuses it as well (defense in depth, in case the network
+# is ever shared again): VMs/ports go on lab-* networks or lab-bridge; the LAN is
+# reachable only via router gateway + floating IP. Every --network/--nic/--port value
+# is resolved to its real network ID and compared with this ID.
+EXTERNAL_NET_ID = "<PROVIDER_NET_ID>"  # <- openstack network show provider -f value -c id
+EXTERNAL_NET_IDS = {EXTERNAL_NET, EXTERNAL_NET_ID.lower()}
+
+# Names of the human-managed core resources (admin project). Bots may not create
+# look-alikes in lab-agent (name confusion when the human or an admin tool resolves them).
+CORE_NAMES = {
+    "lab-net", "lab-subnet", "lab-bridge", "lab-bridge-subnet", "lab-router",
+    "lab-gns3", "lab-gns3-bridge", "lab-assistant", "lab-windows", "lab-key",
+}
 
 NAME_RE = re.compile(r"^lab-[A-Za-z0-9._-]{1,60}$")
 UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$")
@@ -121,6 +132,8 @@ def check_tokens(args):
 def need_lab_name(value, what):
     if not NAME_RE.match(value):
         die("%s must be named 'lab-...' ([A-Za-z0-9._-], max 64 chars), got %r" % (what, value))
+    if value.lower() in CORE_NAMES:
+        die("%s name %r is reserved for a core (human-managed) resource" % (what, value))
 
 
 def need_lab_or_uuid(value, what):
@@ -129,7 +142,8 @@ def need_lab_or_uuid(value, what):
 
 
 def check_user_data(args):
-    """--user-data is only allowed from files under ~/lab-userdata/."""
+    """--user-data is only allowed from files under ~/lab-userdata/.
+    The checked realpath (not the caller's spelling) is what is passed to the CLI."""
     out = list(args)
     for i, a in enumerate(args):
         if a.startswith("--") and len(opt_name(a)) >= 4 and USER_DATA_OPT.startswith(opt_name(a)):
@@ -142,7 +156,101 @@ def check_user_data(args):
             real = os.path.realpath(os.path.expanduser(path))
             if not real.startswith(USERDATA_DIR + os.sep) or not os.path.isfile(real):
                 die("--user-data file must be inside %s/" % USERDATA_DIR)
+            if "=" in a:
+                out[i] = USER_DATA_OPT + "=" + real
+            else:
+                out[i] = USER_DATA_OPT
+                out[i + 1] = real
     return out
+
+
+def os_env():
+    env = {k: v for k, v in os.environ.items()
+           if k in ("PATH", "HOME", "LANG", "LC_ALL", "TERM", "USER", "LOGNAME", "COLUMNS")}
+    env["OS_CLIENT_CONFIG_FILE"] = CLOUDS_YAML
+    env["PYTHONNOUSERSITE"] = "1"
+    return env
+
+
+def resolve(kind, value):
+    """Resolve a network/port reference (name or ID, any case) to the real network ID.
+    Any failure (not found, ambiguous, CLI error) is a refusal."""
+    value = value.strip()
+    if not value or value.startswith("-") or "\x00" in value:
+        die("invalid %s reference %r" % (kind, value))
+    col = "id" if kind == "network" else "network_id"
+    try:
+        r = subprocess.run([OPENSTACK, "--os-cloud", CLOUD, kind, "show",
+                            "-f", "value", "-c", col, "--", value],
+                           env=os_env(), cwd="/", capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError) as e:
+        die("cannot resolve %s %r: %s" % (kind, value, e))
+    out = r.stdout.strip().lower()
+    if r.returncode != 0 or not UUID_RE.match(out):
+        die("cannot resolve %s %r to a network ID (not found or ambiguous); refused" % (kind, value))
+    return out
+
+
+# value-taking options whose value names a network (directly or via a port)
+NET_OPTS = {"server": ["--network", "--nic", "--port"], "port": ["--network"]}
+
+
+def match_opt(tok, names):
+    """Return the option in `names` that `tok` abbreviates (argparse prefix rule), else None."""
+    name = opt_name(tok)
+    if not name.startswith("--") or len(name) < 3:
+        return None
+    hits = [n for n in names if n.startswith(name)]
+    if len(hits) > 1:
+        die("ambiguous option %r" % tok)
+    return hits[0] if hits else None
+
+
+def check_external(res, opts):
+    """Refuse any NIC/port on the external network, comparing real network IDs."""
+    # cheap textual check first (normalized), then real resolution
+    for a in opts:
+        vals = [a, a.split("=", 1)[-1]] + [kv.split("=", 1)[-1] for kv in a.split(",")]
+        if any(v.strip().lower() in EXTERNAL_NET_IDS for v in vals):
+            die("VM NICs/ports on the external network '%s' are not allowed; "
+                "use a lab-* network or lab-bridge (+ router/floating ip)" % EXTERNAL_NET)
+    refs = []  # (kind, value)
+    i = 0
+    while i < len(opts):
+        a = opts[i]
+        opt = match_opt(a, NET_OPTS[res])
+        if opt:
+            if "=" in a:
+                val = a.split("=", 1)[1]
+            else:
+                if i + 1 >= len(opts):
+                    die("%s needs a value" % opt)
+                i += 1
+                val = opts[i]
+            if opt == "--network":
+                refs.append(("network", val))
+            elif opt == "--port":
+                refs.append(("port", val))
+            else:  # --nic net-id=X,port-id=Y,v4-fixed-ip=...  | none | auto
+                v = val.strip().lower()
+                if v == "none":
+                    pass
+                elif v == "auto":
+                    die("--nic auto is not allowed; name a lab-* network")
+                else:
+                    for kv in val.split(","):
+                        k, _, x = kv.partition("=")
+                        k = k.strip().lower()
+                        if k == "net-id":
+                            refs.append(("network", x))
+                        elif k == "port-id":
+                            refs.append(("port", x))
+        i += 1
+    ext = resolve("network", EXTERNAL_NET)
+    for kind, val in refs:
+        if resolve(kind, val) in (ext, EXTERNAL_NET_ID.lower()):
+            die("VM NICs/ports on the external network '%s' are not allowed; "
+                "use a lab-* network or lab-bridge (+ router/floating ip)" % EXTERNAL_NET)
 
 
 def build(argv):
@@ -175,23 +283,29 @@ def build(argv):
         if not rest:
             die("%s create: first argument must be the lab-... name" % res)
         name, opts = rest[0], rest[1:]
+        # no stray positionals: options come as --opt, --opt=value or --opt value
+        prev_is_opt = False
+        for a in opts:
+            if a.startswith("-"):
+                prev_is_opt = "=" not in a
+            elif prev_is_opt:
+                prev_is_opt = False
+            else:
+                die("%s create: unexpected positional argument %r (name goes first)" % (res, a))
         if res == "security group rule":
             need_lab_or_uuid(name, "security group")
         else:
             need_lab_name(name, res)
         if res in ("server", "port"):
-            for a in opts:
-                vals = [a, a.split("=", 1)[-1]] + [kv.split("=", 1)[-1] for kv in a.split(",")]
-                if any(v in EXTERNAL_NET_IDS for v in vals):
-                    die("VM NICs/ports on the external network '%s' are not allowed; "
-                        "use a lab-* network or lab-bridge (+ router/floating ip)" % EXTERNAL_NET)
+            check_external(res, opts)
         if res == "server":
             for a in opts:
                 if is_prefix_of_any(a, SERVER_CREATE_DENY):
                     die("server create option %r is not allowed" % a)
             opts = check_user_data(opts)
-        # positional (name/group) goes last; extra positionals make the CLI fail
-        return head + opts + [name]
+        # positional (name/group) goes last, after "--", so a trailing value-taking
+        # option cannot swallow it; extra positionals make the CLI fail
+        return head + opts + ["--", name]
 
     if res == "router" and action == "add":
         if len(rest) != 3 or rest[0] != "subnet":
@@ -222,12 +336,9 @@ def main():
     cmd = build(sys.argv[1:])
     if not os.path.isfile(OPENSTACK):
         die("openstack client not found at %s" % OPENSTACK, 1)
-    env = {k: v for k, v in os.environ.items()
-           if k in ("PATH", "HOME", "LANG", "LC_ALL", "TERM", "USER", "LOGNAME", "COLUMNS")}
-    env["OS_CLIENT_CONFIG_FILE"] = CLOUDS_YAML
-    env["PYTHONNOUSERSITE"] = "1"
     argv = [OPENSTACK, "--os-cloud", CLOUD] + cmd
-    os.execve(OPENSTACK, argv, env)
+    os.chdir("/")
+    os.execve(OPENSTACK, argv, os_env())
 
 
 if __name__ == "__main__":

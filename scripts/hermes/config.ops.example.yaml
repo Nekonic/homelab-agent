@@ -64,6 +64,11 @@ approvals:
     - '*/.ssh/id_*'
     - 'git push --force*'
     - '*openstack*delete*'
+    - '*openstack *'                # raw openstack CLI: bots use oslab / osadmin only (docs/07)
+    - '*openstack'
+    - '*/.venvs/openstack/*'
+    - '*.config/openstack*'         # credentials (clouds.yaml / app credential secrets)
+    - '*clouds.yaml*'
 
 security:
   allow_private_urls: false       # SSRF guard stays ON (MCP servers are not affected by it)

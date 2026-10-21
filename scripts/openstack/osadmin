@@ -2,15 +2,41 @@
 # osadmin — OpenStack admin CLI for the homelab ops bots, with an audit log.
 # Passes every argument to `openstack --os-cloud lab-admin` unchanged and records the call.
 # Audit log: ~/.local/state/osadmin/audit.log  (time, caller, cwd, argv)
+# Secret-bearing option values (--password, --secret, ...) are logged as ***.
+# This is an audit trail and a guardrail, not a security boundary (see docs/07 "알려진 한계").
 set -u
 OS_BIN="$HOME/.venvs/openstack/bin/openstack"
 LOG_DIR="$HOME/.local/state/osadmin"
+LOG="$LOG_DIR/audit.log"
 mkdir -p "$LOG_DIR" && chmod 700 "$LOG_DIR"
 caller=$(ps -o comm= -p "$PPID" 2>/dev/null | tr -d ' ')
-printf '%s\tcaller=%s\tcwd=%s\targv=%q' "$(date -Is)" "${caller:-?}" "$PWD" "osadmin" >> "$LOG_DIR/audit.log"
-for a in "$@"; do printf ' %q' "$a" >> "$LOG_DIR/audit.log"; done
-printf '\n' >> "$LOG_DIR/audit.log"
+
+# options whose value must never reach the log
+is_secret_opt() {
+  case "$1" in
+    --password|--secret|--admin-pass|--os-password|--os-token|--os-application-credential-secret) return 0 ;;
+  esac
+  return 1
+}
+
+line=$(printf '%s\tcaller=%q\tcwd=%q\targv=%q' "$(date -Is)" "${caller:-?}" "$PWD" "osadmin")
+redact_next=0
+for a in "$@"; do
+  if [ "$redact_next" = 1 ]; then
+    line+=" ***"
+    redact_next=0
+    continue
+  fi
+  if [[ "$a" == --*=* ]] && is_secret_opt "${a%%=*}"; then
+    line+=" $(printf '%q' "${a%%=*}")=***"
+    continue
+  fi
+  is_secret_opt "$a" && redact_next=1
+  line+=" $(printf '%q' "$a")"
+done
+printf '%s\n' "$line" >> "$LOG"
+
 "$OS_BIN" --os-cloud lab-admin "$@"
 rc=$?
-printf '%s\texit=%s\n' "$(date -Is)" "$rc" >> "$LOG_DIR/audit.log"
+printf '%s\n' "$(printf '%s\texit=%s' "$(date -Is)" "$rc")" >> "$LOG"
 exit $rc

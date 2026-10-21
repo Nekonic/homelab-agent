@@ -3,10 +3,12 @@
 #
 # 비서 VM의 전용 SSH 키에 authorized_keys "command=" 로 묶어서, 그 키로는
 # 이 명령의 start | stop | status 외에는 아무것도 할 수 없게 합니다.
-#   command="/usr/local/bin/lab-windows-power",from="<ASSISTANT_FIP>",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... lab-windows-power
+#   restrict,command="/usr/local/bin/lab-windows-power",from="<ASSISTANT_FIP>" ssh-ed25519 AAAA... lab-windows-power
+# (restrict = 포워딩·pty·agent·X11·user-rc 전부 금지. 이 스크립트는 master 의 비밀번호 없는 sudo 에 의존합니다.)
 #
 # 사용 (비서 VM):  ssh winpower status | start | stop
 set -euo pipefail
+umask 077
 
 VM=lab-windows
 ACTION="${SSH_ORIGINAL_COMMAND:-${1:-}}"
@@ -17,12 +19,18 @@ case "$ACTION" in
   *) echo "usage: start | stop | status"; exit 2 ;;
 esac
 
-set -a
-# shellcheck disable=SC1090
-source <(sudo -n cat /etc/kolla/admin-openrc.sh)
-set +a
-E=$(env | grep '^OS_' | sed 's/^/-e /' | tr '\n' ' ')
-os() { sudo -n docker exec $E kolla_toolbox openstack "$@"; }
+# 관리자 자격증명은 argv(ps 로 보임)가 아니라 권한 600 임시 env-file 로 docker 에 넘긴다.
+ENVF=$(mktemp)
+trap 'rm -f "$ENVF"' EXIT
+trap 'exit 130' INT TERM HUP
+(
+  set -a
+  # shellcheck disable=SC1090
+  source <(sudo -n cat /etc/kolla/admin-openrc.sh)
+  set +a
+  env | grep '^OS_' > "$ENVF"
+)
+os() { sudo -n docker exec --env-file "$ENVF" kolla_toolbox openstack "$@"; }
 
 state() { os server show "$VM" -f value -c status; }
 

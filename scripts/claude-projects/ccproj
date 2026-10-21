@@ -29,10 +29,12 @@ run_claude() {  # <name> <task>
   printf '\n===== %s  task: %s\n' "$(date -Is)" "$task" >> "$log"
   cd "$dir" || die "cd failed"
   # Discord plugin off for these runs: the always-on channel session owns that bot token.
-  timeout "$TIMEOUT" "$CLAUDE" "${cont[@]}" -p "$task" --max-turns "$MAX_TURNS" --output-format text \
+  # All options first, then `--`, then the task: a task starting with "-" can't become an option.
+  # 9>&- : the lock fd is not inherited by claude (or anything it leaves running).
+  timeout -k 30 "$TIMEOUT" "$CLAUDE" "${cont[@]}" -p --max-turns "$MAX_TURNS" --output-format text \
     --settings '{"enabledPlugins":{"discord@claude-plugins-official":false}}' \
     --append-system-prompt "You are being run non-interactively by the Hermes ops agent for project '$name' (folder $dir). Reply in plain text; there is no Discord in this run. End with a short summary of what you changed." \
-    < /dev/null 2>&1 | tee -a "$log"
+    -- "$task" < /dev/null 9>&- 2>&1 | tee -a "$log" 9>&-
   local rc=${PIPESTATUS[0]}
   printf '===== %s  exit=%s\n' "$(date -Is)" "$rc" >> "$log"
   [ "$rc" = 124 ] && echo "ccproj: timed out after ${TIMEOUT}s (see: ccproj log $name)"
@@ -48,8 +50,13 @@ case "$cmd" in
           exec 9>"$STATE/$1.lock"; flock -n 9 || die "$1 is already running"
           run_claude "$1" "$2" ;;
   bg)     valid "${1:-}"; need "$1"; [ -n "${2:-}" ] || die "task text required"
-          nohup "$0" run "$1" "$2" >/dev/null 2>&1 &
+          # take the lock here; the background child inherits fd 9 (and the lock) via _bgrun
+          exec 9>"$STATE/$1.lock"; flock -n 9 || die "$1 is already running"
+          nohup "$0" _bgrun "$1" "$2" >/dev/null 2>&1 &
           echo "started in background: $1 (pid $!) — check with: ccproj log $1" ;;
+  _bgrun) valid "${1:-}"; need "$1"; [ -n "${2:-}" ] || die "task text required"
+          flock -n 9 2>/dev/null || die "_bgrun is internal (lock fd not inherited)"
+          run_claude "$1" "$2" ;;
   log)    valid "${1:-}"; tail -n "${2:-40}" "$STATE/$1.log" 2>/dev/null || echo "(no log yet)" ;;
   status) valid "${1:-}"; exec 9>"$STATE/$1.lock"; flock -n 9 && echo "$1: idle" || echo "$1: running" ;;
   reset)  valid "${1:-}"; need "$1"

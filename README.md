@@ -11,9 +11,11 @@ OpenStack 테넌트 안에 VM 3대를 만들고, AI 비서가 GNS3 서버(MCP)�
 |---|---|---|
 | `lab-assistant` | AI 비서 | Hermes Agent + Claude Code, Discord로 대화 |
 | `lab-gns3` | 실습망 엔진 | GNS3 server **3.1.0a6** (내장 MCP), QEMU/KVM 중첩 가상화 |
-| `lab-windows` | 실습용 데스크톱 | Windows 11, GNS3 GUI. 비서가 SSH/VNC로 조작 |
+| `lab-windows` | 실습용 데스크톱 | Windows 11, GNS3 GUI. 비서가 `ssh win`(명령)·Windows-MCP `:8000`(화면)·VNC(로그온 화면)로 조작. **평소 꺼 둠**, `ssh winpower start\|stop\|status`로 켜고 끔 |
 
-사용자는 집 공유기의 **WireGuard**로 홈 LAN에 들어온 뒤, LAN 대역의 Floating IP로 각 VM에 접근합니다.
+사용자는 집 공유기의 **WireGuard**로 홈 LAN에 들어온 뒤, LAN 대역의 Floating IP로 각 VM에 접근합니다(보안 그룹에 WireGuard 대역도 허용).
+
+`lab-windows`는 평소 꺼져 있습니다(SHUTOFF). 봇이 Windows 작업 전에 Kolla 호스트의 전원 전용 명령(`ssh winpower start`, [scripts/lab-windows-power](scripts/lab-windows-power))으로 켜고, 끝나면 끕니다. 켜지면 자동 로그온되어 Windows-MCP(`:8000`, 비서 VM에서만 접근)가 저절로 뜹니다.
 
 ```mermaid
 flowchart LR
@@ -25,10 +27,11 @@ flowchart LR
         QR --- LN[(lab-net<br/>10.10.0.0/24)]
         LN --- A[lab-assistant<br/>Hermes Agent + Claude Code]
         LN --- G[lab-gns3<br/>GNS3 server 3.1.0a6 + MCP]
-        LN --- W[lab-windows<br/>Win11 + GNS3 GUI]
+        LN --- W[lab-windows<br/>Win11 + GNS3 GUI<br/>평소 꺼 둠]
     end
     A -- "MCP (SSE, :3080)" --> G
-    A -- "SSH :22 / VNC :5900" --> W
+    A -- "SSH :22 / Windows-MCP :8000 / VNC :5900" --> W
+    A -. "ssh winpower start/stop/status" .-> K[Kolla 호스트<br/>lab-windows-power]
     W -- "GNS3 GUI → :3080, 콘솔 5000-5100" --> G
 ```
 
@@ -42,11 +45,13 @@ ASCII 버전:
                               lab-net 10.10.0.0/24 (예시)
                +------------------------------+------------------------------+
                |                              |                              |
-      lab-assistant (FIP 예: .202)   lab-gns3 (FIP 예: .201)        lab-windows (FIP 예: .203)
+      lab-assistant (FIP 예: .202)   lab-gns3 (FIP 예: .201)        lab-windows (FIP 예: .203, 평소 꺼 둠)
       Hermes Agent + Claude Code     GNS3 server 3.1.0a6 + MCP      Win11 + GNS3 GUI
-      Discord 봇                     :3080 API/MCP, 5000-5100 콘솔   :22 SSH, :5900 VNC (비서 전용)
+      Discord 봇                     :3080 API/MCP, 5000-5100 콘솔   :22 SSH, :8000 Windows-MCP, :5900 VNC (비서 전용)
+                                                                    :3389 RDP (LAN + WireGuard)
                |---- MCP over SSE ---------->|                              |
-               |---- SSH / VNC --------------------------------------------->|
+               |---- SSH / Windows-MCP / VNC ------------------------------->|
+               |---- ssh winpower start|stop|status --> Kolla 호스트 (lab-windows-power)
 ```
 
 > 위 주소(192.168.0.0/24, 10.10.0.0/24, .201~.203)는 **예시**입니다. 자기 LAN 대역에 맞게 바꾸세요.
@@ -56,7 +61,9 @@ ASCII 버전:
 - Ubuntu 24.04 + Kolla-Ansible 단일 노드 (이 문서는 **2026.1**, 이미지 태그 `2026.1-ubuntu-noble` 기준)
 - Intel VT-x(또는 AMD-V) + **중첩 가상화**(nested) 활성화 — GNS3 안에서 QEMU 장비를 KVM으로 돌리기 위해 필수
 - 예시 하드웨어: i3-12100F (4C/8T), RAM 62GB
-  - 세 VM 합계: vCPU 14 / RAM 40GB / 디스크 240GB (오버커밋 전제)
+  - 세 VM 합계: vCPU 14 / RAM **48GB** / 디스크 **310GB** (오버커밋 전제)
+    - `lab-gns3` 24GB/120GB, `lab-assistant` 8GB/40GB, `lab-windows` 16GB/150GB (`lab.windows16`)
+    - 꺼 둔 VM도 flavor만큼 메모리를 예약(placement)합니다.
 - Neutron provider(flat) 네트워크가 홈 LAN에 브리지되어 있을 것 (`physnet1` ↔ `br-ex`)
 - Nova `enable_nova_swtpm` 활성화 (Windows 11 vTPM용)
 - 공유기에서 WireGuard 서버 사용 가능 (외부 접속용, 선택)
@@ -73,7 +80,7 @@ ASCII 버전:
 | 03 | [docs/03-windows-vm.md](docs/03-windows-vm.md) | Windows 11 VM 첫 부팅 자동화(SSH/VNC/RDP), GNS3 GUI 3.1.0a6 | 완료 (GUI 원격 서버 연결은 수동) |
 | 04 | [docs/04-hermes-agent.md](docs/04-hermes-agent.md) | AI 비서 VM: Hermes Agent (ChatGPT Plus → OpenRouter 무료 모델 폴백), reader/ops 봇 분리, 승인 정책 | 완료 (OAuth·API 키·Discord 토큰은 수동) |
 | 05 | [docs/05-mcp.md](docs/05-mcp.md) | MCP 연동: GNS3 내장 MCP, Windows-MCP(자동 로그온), mcp-vnc(예비), netmiko_mcp | 완료 |
-| 06 | [docs/06-claude-code.md](docs/06-claude-code.md) | Claude Code + Discord 채널 (Claude 구독), 권한 relay, systemd+tmux | 서버 준비 완료 (로그인·봇 토큰·페어링은 수동) |
+| 06 | [docs/06-claude-code.md](docs/06-claude-code.md) | Claude Code + Discord `#claude` 포럼 (Claude 구독), auto 권한 모드 + deny 규칙, systemd+tmux, `~/claude-work` CHANGELOG, 매일 점검 리포트 | 서버 준비 완료 (로그인·봇 토큰·페어링은 수동) |
 | 07 | [docs/07-openstack-agent.md](docs/07-openstack-agent.md) | 봇에게 OpenStack 주기: admin 키+감사 로그(`osadmin`)+핵심 VM lock, 최소 권한 경로 lab-agent 프로젝트·쿼터, Nova 정책, 앱 크리덴셜 access_rules, lab-bridge(GNS3 연결), Kali 이미지, `oslab` 스킬 | 완료 |
 | 08 | [docs/08-claude-projects.md](docs/08-claude-projects.md) | Hermes → Claude Code 프로젝트 위임 (`ccproj`, 프로젝트별 기억) | 완료 |
 | — | [docs/research/2026-10-agent-landscape.md](docs/research/2026-10-agent-landscape.md) | 셀프호스트 AI 비서 에이전트 비교 조사 (2026-10) | 참고 |
@@ -86,13 +93,16 @@ ASCII 버전:
 | [scripts/windows-userdata.ps1](scripts/windows-userdata.ps1) | Windows 첫 부팅 스크립트 (Cloudbase-Init) |
 | [scripts/windows-autologon.ps1](scripts/windows-autologon.ps1) | Windows 자동 로그온 (전원 끄고 켜도 로그온, Windows-MCP용) |
 | [scripts/windows-rdp-autoconsole.ps1](scripts/windows-rdp-autoconsole.ps1) | RDP 창을 닫으면 세션을 콘솔로 자동 복귀 + Windows-MCP 재시작 루프 |
-| [scripts/lab-windows-power](scripts/lab-windows-power) | Kolla 호스트용 lab-windows 전원 제어 명령 (start/stop/status만) |
+| [scripts/lab-windows-power](scripts/lab-windows-power) | Kolla 호스트용 lab-windows 전원 제어 명령 (start/stop/status만, 비서 VM의 `ssh winpower`가 `restrict,command=` 키로 호출) |
 | [scripts/gns3_server.conf.example](scripts/gns3_server.conf.example) | GNS3 server 설정 템플릿 |
 | [scripts/gns3server.service](scripts/gns3server.service) | GNS3 server systemd 유닛 |
 | [scripts/hermes/](scripts/hermes/) | Hermes 설정·`.env` 예시, netmiko 설정, Windows-MCP 설치 스크립트 |
 | [scripts/openstack/](scripts/openstack/) | Nova 정책, access_rules, `oslab` 래퍼, OpenStack 스킬 SKILL.md, netplan 예시 |
+| [scripts/openstack/osadmin](scripts/openstack/osadmin) | 봇용 OpenStack admin 래퍼 (감사 로그, 비밀 옵션 값 가림). 스킬: [scripts/openstack/openstack-admin/SKILL.md](scripts/openstack/openstack-admin/SKILL.md) |
 | [scripts/claude-projects/](scripts/claude-projects/) | `ccproj` 래퍼, Hermes `claude-projects` 스킬 |
-| [scripts/claude-code/](scripts/claude-code/) | Claude Code systemd 유닛, CLAUDE.md 규칙, 권한 deny 예시 |
+| [scripts/claude-code/](scripts/claude-code/) | Claude Code systemd 유닛, CLAUDE.md 규칙(`~/.claude`, `~/claude-work`), 권한 예시(auto + deny) |
+| [scripts/claude-code/homelab-report](scripts/claude-code/homelab-report) (+ [.service](scripts/claude-code/homelab-report.service) / [.timer](scripts/claude-code/homelab-report.timer)) | 매일 08:03 조회 전용 홈랩 점검을 `#claude` 포럼에 새 글로 올림 |
+| [scripts/claude-code/claude-discord-restart.timer](scripts/claude-code/claude-discord-restart.timer) (+ [.service](scripts/claude-code/claude-discord-restart.service)) | 매일 04:30 Claude Discord 세션을 새로 시작 |
 
 ## 비밀값 관리
 

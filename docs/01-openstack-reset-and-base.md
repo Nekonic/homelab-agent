@@ -54,7 +54,7 @@ sudo grep -rE 'bridge_mappings|flat_networks' /etc/kolla/neutron-*/ 2>/dev/null
 | 타입 / physnet | `flat` / `physnet1` (`physnet1:br-ex`) |
 | 서브넷 | `192.168.0.0/24`, gw `192.168.0.1`, **DHCP 없음** |
 | 할당 풀 | `192.168.0.200-192.168.0.230` |
-| 속성 | `--external`, `--share` |
+| 속성 | `--external` (재생성할 때 `--share`는 **붙이지 않음**, B-1 참고) |
 
 #### A-1. (필요 시) 커스텀 이미지 백업
 
@@ -120,7 +120,7 @@ os user list
 
 ```bash
 os network create provider \
-  --external --share \
+  --external \
   --provider-network-type flat --provider-physical-network physnet1
 
 os subnet create provider-subnet \
@@ -130,6 +130,8 @@ os subnet create provider-subnet \
 ```
 
 > Floating IP 풀(`.200-.230`)은 **공유기 DHCP 범위와 겹치지 않게** 하세요.
+
+> **`--share`를 붙이지 않는 이유**: 외부망(`--external`)은 공유하지 않아도 모든 프로젝트가 라우터 게이트웨이와 Floating IP로 쓸 수 있습니다. 반대로 공유하면 Nova의 `network:attach_external_network` 검사가 적용되지 않아, 관리자가 아닌 프로젝트(예: 봇용 `lab-agent`)도 VM을 홈 LAN에 **직접** 붙일 수 있습니다. 자세한 경위는 [07 문서의 남은 위험](07-openstack-agent.md#남은-위험-알고-쓰기)을 보세요. 이미 `--share`로 만들었다면 `os network set --no-share provider`.
 
 #### B-2. lab-net / 라우터
 
@@ -151,13 +153,16 @@ os router add subnet lab-router lab-subnet
 |---|---|---|---|
 | `lab.assistant` | 4 | 8GB | 40GB |
 | `lab.gns3` | 6 | 24GB | 120GB |
-| `lab.windows` | 4 | 8GB | 80GB |
+| `lab.windows16` | 4 | 16GB | 150GB |
+| **합계** | **14** | **48GB** | **310GB** |
 
 ```bash
 os flavor create lab.assistant --vcpus 4 --ram 8192  --disk 40
 os flavor create lab.gns3      --vcpus 6 --ram 24576 --disk 120
-os flavor create lab.windows   --vcpus 4 --ram 8192  --disk 80
+os flavor create lab.windows16 --vcpus 4 --ram 16384 --disk 150
 ```
+
+> 예전 판에서는 `lab.windows`(8GB/80GB)로 만든 뒤 리사이즈했습니다. 8GB에서는 GNS3 GUI와 브라우저를 함께 쓰기 빠듯하고 C: 여유도 약 44GB뿐이라, 처음부터 16GB/150GB로 만듭니다. 이미 만든 VM을 늘리는 방법은 [03 문서 4단계](03-windows-vm.md#4-램디스크-늘리기-리사이즈와-c-드라이브-확장)에 있습니다.
 
 #### B-4. 키페어
 
@@ -253,9 +258,9 @@ Cloudbase-Init + virtio 드라이버 + QEMU guest agent가 들어간 Windows 11 
 sudo docker run --rm --user 0 --network host $E \
   -v /home/<user>:/w:ro \
   --entrypoint bash quay.io/openstack.kolla/kolla-toolbox:2026.1-ubuntu-noble \
-  -c 'openstack image create windows-11 \
+  -c 'openstack image create win11 \
         --disk-format qcow2 --container-format bare \
-        --file /w/images/<windows-11>.qcow2 \
+        --file /w/images/<WIN11_QCOW2>.qcow2 \
         --property os_type=windows \
         --property hw_firmware_type=uefi \
         --property hw_machine_type=q35 \
@@ -301,7 +306,7 @@ os server create lab-assistant \
   --user-data /tmp/lab/ubuntu-cloud-config.yaml --wait
 
 os server create lab-windows \
-  --flavor lab.windows --image windows-11 --network lab-net \
+  --flavor lab.windows16 --image win11 --network lab-net \
   --security-group sg-windows --key-name lab-key \
   --config-drive true --user-data /tmp/lab/windows.ps1 --wait
 ```

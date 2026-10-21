@@ -32,6 +32,9 @@ icacls "$d\config.toml" /inheritance:r /grant:r "${env:USERNAME}:(R,W)" "SYSTEM:
 "config.toml written ({0} bytes)" -f (Get-Item "$d\config.toml").Length
 
 # 2) per-user Scheduled Task "windows-mcp-server" (AtLogOn, Interactive, RunLevel Limited)
+#    NOTE: `install --force` regenerates start-server.cmd and drops the restart loop added by
+#    scripts/windows-rdp-autoconsole.ps1. After this script, re-run windows-rdp-autoconsole.ps1
+#    (elevated PowerShell) — see docs/05-mcp.md.
 #    windows-mcp may print a cp949 decode traceback on Korean Windows; the task is still registered.
 $ErrorActionPreference = "Continue"
 windows-mcp install --transport streamable-http --host $WinIp --port $Port --force 2>&1 | Select-Object -First 12
@@ -52,3 +55,4 @@ if (-not (Get-NetFirewallRule -Name "windows-mcp-$Port" -ErrorAction SilentlyCon
 }
 Get-NetFirewallRule -Name "windows-mcp-$Port" | Select-Object Name,Enabled,Direction,Action | Format-Table -Auto | Out-String
 Get-ScheduledTask -TaskName windows-mcp-server | Select-Object TaskName,State | Format-Table -Auto | Out-String
+"NEXT: re-run windows-rdp-autoconsole.ps1 as Administrator (install --force removed its restart loop from start-server.cmd)."

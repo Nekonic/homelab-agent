@@ -90,7 +90,7 @@ os hypervisor list --long
 free -g; df -h /var/lib/docker /var/lib/nova 2>/dev/null
 ```
 
-이 프로젝트의 flavor 합계는 vCPU 14 / RAM 40GB / 디스크 240GB입니다. 4C/8T 호스트라면 CPU 오버커밋(기본 `cpu_allocation_ratio` 16)으로 충분하고, RAM은 호스트와 Kolla 컨테이너 몫까지 감안해 여유를 확인하세요.
+이 프로젝트의 flavor 합계는 vCPU 14 / RAM 48GB / 디스크 310GB입니다(`lab.gns3` 24GB/120GB, `lab.assistant` 8GB/40GB, `lab.windows16` 16GB/150GB). Windows VM은 평소 꺼 두지만, 꺼진 VM도 flavor만큼 메모리를 예약하므로 합계 기준으로 봅니다. 4C/8T 호스트라면 CPU 오버커밋(기본 `cpu_allocation_ratio` 16)으로 충분하고, RAM은 호스트와 Kolla 컨테이너 몫까지 감안해 여유를 확인하세요.
 
 ### 5. 서비스 구성 확인
 

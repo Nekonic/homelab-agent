@@ -6,11 +6,14 @@
 - AI 비서(`lab-assistant`)가 SSH(PowerShell)와 VNC(화면)로 Windows를 조작할 수 있게 함
 - GNS3 GUI **3.1.0a6**(서버와 동일 버전)을 설치하고 원격 GNS3 서버에 연결
 
+> 이 VM은 다 만든 뒤 **평소 꺼 둡니다**. 자동 로그온, RDP 창 닫기 처리, Windows-MCP, 전원 제어(`ssh winpower start|stop|status`), 봇용 `ssh win` 별칭은 [05 문서](05-mcp.md#3-windows-mcp-lab-windows)에서 설정합니다.
+
 ## 사전조건
 
-- [01 문서](01-openstack-reset-and-base.md)의 Windows 11 이미지(`windows-11`), `sg-windows`, flavor `lab.windows`
+- [01 문서](01-openstack-reset-and-base.md)의 Windows 11 이미지(`win11`), `sg-windows`, flavor `lab.windows16`
 - [02 문서](02-gns3-server.md)의 GNS3 server 동작
-- 자리표시자: `<WIN_ADMIN_PASSWORD>`, `<VNC_PASSWORD>`(8자 이하), `<SSH_PUBLIC_KEY>`, `<WIN_LAB_IP>`, `<FLOATING_IP_WINDOWS>`, `<ASSISTANT_FIP>`, `<GNS3_LAB_IP>`, `<GNS3_PASSWORD>`
+- 자리표시자: `<WIN_ADMIN_PASSWORD>`, `<VNC_PASSWORD>`(8자 이하), `<SSH_PUBLIC_KEY>`, `<ASSISTANT_LAB_IP>`, `<TIGHTVNC_MSI_SHA256>`, `<WIN_LAB_IP>`, `<FLOATING_IP_WINDOWS>`, `<ASSISTANT_FIP>`, `<GNS3_LAB_IP>`, `<GNS3_PASSWORD>`
+- 이 문서의 `os`는 [00 문서](00-host-check.md)의 admin 헬퍼(Kolla 호스트에서 `kolla_toolbox` 안의 `openstack`을 admin openrc로 부르는 셸 함수)입니다.
 
 ## 절차
 
@@ -20,13 +23,13 @@
 
 ```bash
 sudo apt install -y libguestfs-tools
-virt-filesystems --long --parts --filesystems -a ~/images/<windows-11>.qcow2
+virt-filesystems --long --parts --filesystems -a ~/images/<WIN11_QCOW2>.qcow2
 ```
 
 `guestfish -i`(자동 OS 인식)는 실패했으므로, Windows 파티션(예시: `/dev/sda3`)을 직접 마운트합니다.
 
 ```bash
-guestfish --ro -a ~/images/<windows-11>.qcow2
+guestfish --ro -a ~/images/<WIN11_QCOW2>.qcow2
 ><fs> run
 ><fs> mount /dev/sda3 /
 ><fs> ls "/Program Files"
@@ -56,15 +59,18 @@ guestfish --ro -a ~/images/<windows-11>.qcow2
 2. RDP 활성화 + 방화벽 그룹 허용
 3. `Add-WindowsCapability OpenSSH.Server`, sshd 자동 시작, 기본 셸 PowerShell
 4. `administrators_authorized_keys`에 공개키 등록 + `icacls`로 권한 정리, 방화벽 22
-5. TightVNC 2.8.90 MSI 무인 설치 (`ADDLOCAL=Server`, VNC 인증, `VALUE_OF_PASSWORD`(최대 8자), `ALLOWLOOPBACK`), 방화벽 5900
-6. 완료 표시 `C:\lab-init.done`, 전체 로그 `C:\lab-init.log`
+5. TightVNC 2.8.90 MSI를 받아 **SHA256 검증 후** 무인 설치 (`ADDLOCAL=Server`, VNC 인증, `VALUE_OF_PASSWORD`(최대 8자), `ALLOWLOOPBACK`). 해시가 비어 있거나 다르면 설치하지 않습니다. 방화벽 5900은 `-RemoteAddress <ASSISTANT_LAB_IP>`로 비서 VM만
+6. 절전 끄기
+7. `sshd`·`tvnserver`가 **둘 다 Running일 때만** 완료 표시 `C:\lab-init.done`을 쓰고 Cloudbase-Init을 끕니다. 아니면 `exit 1002`로 끝나 다음 부팅에 스크립트가 다시 돕니다. 전체 로그 `C:\lab-init.log`
+
+`<TIGHTVNC_MSI_SHA256>` 얻는 법: 신뢰할 수 있는 PC에서 스크립트의 `$vncUrl` 파일을 받아 `shasum -a 256 <파일>`(macOS/Linux) 또는 `Get-FileHash <파일> -Algorithm SHA256`(Windows)으로 계산합니다. 가능하면 tightvnc.com 다운로드 페이지의 표기와 대조하세요.
 
 저장소 밖에 복사해서 자리표시자를 채운 뒤, [01 문서 D 단계](01-openstack-reset-and-base.md#d-서버-생성)대로 `--config-drive true --user-data /tmp/lab/windows.ps1`로 서버를 만듭니다.
 
 ```bash
 mkdir -p -m 700 ~/lab
 cp scripts/windows-userdata.ps1 ~/lab/windows.ps1
-vi ~/lab/windows.ps1     # <WIN_ADMIN_PASSWORD>, <VNC_PASSWORD>, <SSH_PUBLIC_KEY>
+vi ~/lab/windows.ps1     # <WIN_ADMIN_PASSWORD>, <VNC_PASSWORD>, <SSH_PUBLIC_KEY>, <ASSISTANT_LAB_IP>, <TIGHTVNC_MSI_SHA256>
 ```
 
 `<SSH_PUBLIC_KEY>`에는 lab-assistant에서 쓸 키의 공개키(예: `~/.ssh/lab-key.pub` 내용)를 넣습니다.
@@ -81,21 +87,24 @@ os console log show lab-windows | tail
 |---|---|---|
 | 22 (SSH) | `sg-assistant`만 | 비서 전용 제어 채널 |
 | 5900 (VNC) | `sg-assistant`만 | VNC는 암호화가 약함 → LAN에도 열지 않음 |
-| 3389 (RDP) | LAN | 사람이 직접 화면 사용 |
+| 3389 (RDP) | LAN + WireGuard 대역 | 사람이 직접 화면 사용 ([01 문서](01-openstack-reset-and-base.md#b-5-보안-그룹)의 WG 규칙) |
+| 8000 (Windows-MCP) | `sg-assistant`만 | [05 문서](05-mcp.md)에서 추가 |
 
 ### 4. 램·디스크 늘리기 (리사이즈)와 C: 드라이브 확장
 
-**리사이즈.** 단일 노드에서는 nova에 `allow_resize_to_same_host = true`가 있어야 합니다. 이 구성에는 이미 있었습니다(`grep allow_resize /etc/kolla/nova-api/nova.conf`). VM이 꺼진 상태에서 진행합니다.
+[01 문서](01-openstack-reset-and-base.md#b-3-flavor)대로 처음부터 `lab.windows16`(16GB/150GB)으로 만들었다면 리사이즈는 건너뛰고 아래 **C: 확장**만 하면 됩니다.
+
+**리사이즈.** (예전 `lab.windows` 8GB/80GB로 만든 VM일 때) 단일 노드에서는 nova에 `allow_resize_to_same_host = true`가 있어야 합니다. 이 구성에는 이미 있었습니다(`grep allow_resize /etc/kolla/nova-api/nova.conf`). VM이 꺼진 상태에서 진행합니다.
 
 ```bash
-openstack flavor create lab.windows16 --vcpus 4 --ram 16384 --disk 150
-openstack server resize --flavor lab.windows16 --wait lab-windows
-openstack server resize confirm lab-windows      # VERIFY_RESIZE → 확정
+os flavor show lab.windows16 >/dev/null 2>&1 || os flavor create lab.windows16 --vcpus 4 --ram 16384 --disk 150
+os server resize --flavor lab.windows16 --wait lab-windows
+os server resize confirm lab-windows      # VERIFY_RESIZE → 확정
 ```
 
-2026-10-21: 8GB/80GB → 16GB/150GB. 리사이즈는 같은 호스트 안에서 디스크를 복사하므로 몇 분 걸립니다. 꺼진 VM도 플레이버만큼 메모리를 예약(placement)하므로 호스트 여유를 먼저 확인하세요(`openstack hypervisor stats show`).
+2026-10-21: 8GB/80GB → 16GB/150GB. 리사이즈는 같은 호스트 안에서 디스크를 복사하므로 몇 분 걸립니다. 꺼진 VM도 플레이버만큼 메모리를 예약(placement)하므로 호스트 여유를 먼저 확인하세요(`os hypervisor stats show`).
 
-**C: 확장.** 디스크를 늘려도 C:는 자동으로 커지지 않습니다. 80GB일 때도 C: 여유가 **약 44GB**뿐이었습니다. 복구(Recovery) 파티션이 C: **뒤에** 있어서 Cloudbase-Init의 ExtendVolumes 플러그인이 C:를 늘리지 못하기 때문입니다. 필요하면 관리자 PowerShell에서:
+**C: 확장.** 디스크를 늘려도(처음부터 150GB로 만들어도) C:는 자동으로 커지지 않습니다. 80GB일 때도 C: 여유가 **약 44GB**뿐이었습니다. 복구(Recovery) 파티션이 C: **뒤에** 있어서 Cloudbase-Init의 ExtendVolumes 플러그인이 C:를 늘리지 못하기 때문입니다. 필요하면 관리자 PowerShell에서:
 
 ```powershell
 Get-Partition -DiskNumber 0                     # Recovery 파티션 번호 확인
@@ -106,7 +115,7 @@ Resize-Partition -DriveLetter C -Size $max
 reagentc /enable
 ```
 
-> 파티션 삭제는 되돌릴 수 없습니다. 스냅숏(`openstack server image create`)을 먼저 떠두세요.
+> 파티션 삭제는 되돌릴 수 없습니다. 스냅숏(`os server image create`)을 먼저 떠두세요.
 
 PowerShell만으로도 됩니다. `Remove-Partition -DiskNumber 0 -PartitionNumber <N> -Confirm:$false`를 쓰면 diskpart 없이 지울 수 있습니다.
 
@@ -183,7 +192,7 @@ Get-Content C:\lab-init.log -Tail 30
 | 확인 | 기대값 |
 |---|---|
 | assistant → 22/5900 | 열림 |
-| LAN → 3389 | RDP 로그인 가능 |
+| LAN/WireGuard → 3389 | RDP 로그인 가능 |
 | LAN → 22/5900 | **차단** (SG) |
 | `ssh -J ... Admin@<WIN_LAB_IP>` | PowerShell |
 | `sshd`, `tvnserver` | Running |
@@ -202,7 +211,7 @@ Get-Content C:\lab-init.log -Tail 30
 - **C: 공간 부족**: 위 4단계 참고.
 - **재부팅 후 Admin 비밀번호가 바뀌어 RDP 로그인이 안 됨**
   - 원인: Cloudbase-Init의 `SetUserPasswordPlugin`이 부팅할 때마다 임의의 비밀번호를 만들어 설정합니다. 이 값을 메타데이터로 올리려면 RSA 키가 필요한데 ed25519 키페어라서 `Invalid SSH key`로 실패합니다. 실패한 플러그인은 완료로 기록되지 않아 **다음 부팅에서 다시 실행**되고, 그때마다 비밀번호가 다시 바뀝니다.
-  - 확인: `openstack console log show lab-windows | grep -E "SetUserPasswordPlugin|Password succesfully updated"`
+  - 확인: `os console log show lab-windows | grep -E "SetUserPasswordPlugin|Password succesfully updated"`
   - 해결: SSH 키 접속은 계속 되므로, 비밀번호를 다시 설정하고 첫 부팅 설정이 끝난 Cloudbase-Init을 끕니다.
 
     ```powershell

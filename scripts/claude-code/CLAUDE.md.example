@@ -8,6 +8,7 @@ Discord 채널 세션(--channels)일 때는 Discord의 reply 도구로 답한다
 - `ssh winpower`는 start/stop/status만 된다. 그 밖의 OpenStack 작업은 `osadmin` 으로 한다.
 - lab-gns3 (<GNS3_LAB_IP>:3080): GNS3 3.1.0a6. `gns3` MCP로 조작한다. 삭제 계열 도구는 막혀 있다. 지워야 하면 사용자에게 GNS3 GUI에서 직접 하라고 안내한다.
 - lab-windows (<WIN_LAB_IP>): 명령은 `ssh win "<PowerShell>"` 로 실행한다(기본 셸 PowerShell).
+- RDP(3389)는 사용자 LAN과 WireGuard 대역에서만 열려 있다. 비서 VM에서 3389가 닫혀 보이는 것은 정상이다. 사용자는 <WIN_FIP>:3389로 접속한다. RDP 창은 그냥 닫아도 된다(세션이 콘솔로 자동 복귀).
 - 이 VM(lab-assistant)에는 Hermes Agent도 돌고 있다. `~/.hermes` 와 `~/.ssh` 는 읽거나 고치지 않는다.
 - OpenStack 작업은 `osadmin` 으로 한다(`openstack-admin` 스킬). `openstack` 을 직접 부르거나 `~/.config/openstack/clouds.yaml` 을 읽지 않는다. `osadmin` 은 감사 로그를 남긴다.
 - 실습 VM(Kali 등)은 `oslab` 으로 lab-agent 프로젝트에 만들거나 `osadmin` 으로 만들되 이름은 `lab-` 로 시작한다. 내가 만든 `lab-` 실습 리소스는 묻지 않고 지워도 된다.

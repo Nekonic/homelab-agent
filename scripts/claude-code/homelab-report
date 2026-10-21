@@ -5,6 +5,11 @@ set -u
 FORUM_ID="${HOMELAB_REPORT_FORUM_ID:?set HOMELAB_REPORT_FORUM_ID}"
 TOKEN=$(grep -E '^DISCORD_BOT_TOKEN=' "$HOME/.claude/channels/discord/.env" | cut -d= -f2-)
 LOG_DIR="$HOME/.local/state/homelab-report"; mkdir -p "$LOG_DIR"
+if [ -z "$TOKEN" ]; then
+  printf '===== %s DISCORD_BOT_TOKEN missing in ~/.claude/channels/discord/.env — report skipped\n' "$(date -Is)" >> "$LOG_DIR/report.log"
+  echo "homelab-report: DISCORD_BOT_TOKEN missing — skipped" >&2
+  exit 1
+fi
 DAY=$(date +%F)
 PROMPT=$(cat <<'P'
 홈랩 일일 점검 리포트를 작성해라. **조회만 하고 아무것도 바꾸지 마라**(켜기·끄기·삭제·재시작 금지, 윈도우 VM이 꺼져 있으면 켜지 마라).
@@ -32,7 +37,7 @@ tok, forum = os.environ["TOKEN"], os.environ["FORUM_ID"]
 body = os.environ["BODY"].strip() or "(빈 결과)"
 chunks, cur = [], ""
 for line in body.splitlines(keepends=True):          # Discord limit 2000 chars per message
-    if len(cur) + len(line) > 1900:
+    if cur and len(cur) + len(line) > 1900:
         chunks.append(cur); cur = ""
     cur += line[:1900]
 chunks.append(cur)
@@ -41,8 +46,10 @@ def call(url, payload):
           headers={"Authorization": f"Bot {tok}", "Content-Type": "application/json", "User-Agent": "homelab-report"})
     return json.load(urllib.request.urlopen(req, timeout=30))
 api = "https://discord.com/api/v10"
-post = call(f"{api}/channels/{forum}/threads", {"name": os.environ["TITLE"], "message": {"content": chunks[0]}})
+NO_PINGS = {"parse": []}   # never ping @everyone/roles/users from model output
+post = call(f"{api}/channels/{forum}/threads",
+            {"name": os.environ["TITLE"], "message": {"content": chunks[0], "allowed_mentions": NO_PINGS}})
 for c in chunks[1:]:
-    call(f"{api}/channels/{post['id']}/messages", {"content": c})
+    call(f"{api}/channels/{post['id']}/messages", {"content": c, "allowed_mentions": NO_PINGS})
 print("posted", post["id"], "chunks", len(chunks))
 PY

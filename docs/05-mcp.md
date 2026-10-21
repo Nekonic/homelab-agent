@@ -7,7 +7,7 @@
 | 이름 | 서버 | 전송 | 역할 | 노출/제외 |
 |---|---|---|---|---|
 | `gns3` | GNS3 server 3.1.0a6 내장 MCP | SSE `:3080` + API 키 | 토폴로지·노드·콘솔 부트스트랩 | 76개 중 **65개 노출 / 11개 제외** |
-| `windows` | [Windows-MCP](https://github.com/CursorTouch/Windows-MCP) 0.8.8 | streamable-http `:8000` + Bearer | Windows 데스크톱 주 조작 수단 | 전부(로그온 후 확인 필요, 아래 참고) |
+| `windows` | [Windows-MCP](https://github.com/CursorTouch/Windows-MCP) 0.8.8 | streamable-http `:8000` + Bearer | Windows 화면 확인·클릭·입력 (명령 실행은 `ssh win`) | 21개 중 **19개 노출 / `PowerShell`·`Registry` 제외** |
 | `vnc` | [@hrrrsn/mcp-vnc](https://github.com/hrrrsn/mcp-vnc) 1.0.2 | stdio → VNC `:5900` | 로그인/UAC 화면용 폴백 | 6개 |
 | `netmiko` | [netmiko-mcp](https://github.com/ktbyers/netmiko_mcp) 0.2.0 | stdio | 장비 show 명령(기본 거부 allowlist) | 7개 |
 
@@ -16,7 +16,8 @@
 ## 사전조건
 
 - [04 문서](04-hermes-agent.md) 완료
-- 자리표시자: `<GNS3_LAB_IP>`(예: 10.10.0.x), `<WIN_LAB_IP>`, `<ASSISTANT_LAB_IP>`, `<ASSISTANT_FIP>`, `<GNS3_FIP>`, `<KOLLA_HOST>`
+- 자리표시자: `<GNS3_LAB_IP>`(예: 10.10.0.x), `<WIN_LAB_IP>`, `<ASSISTANT_LAB_IP>`, `<ASSISTANT_FIP>`, `<GNS3_FIP>`, `<KOLLA_HOST>`, `<KOLLA_USER>`(Kolla 호스트의 sudo 사용자)
+- Kolla 호스트에서 쓰는 `os`는 [00 문서](00-host-check.md)의 admin 헬퍼입니다(`kolla_toolbox` 안의 `openstack`을 admin openrc로 실행).
 - 비밀값 보관 규칙
   - lab-assistant: `~/.hermes/.env` (600) — `GNS3_API_KEY`, `WINDOWS_MCP_AUTH_KEY`, `VNC_PASSWORD`
   - Kolla 호스트: `~/lab-secrets.env` (600) — `GNS3_HERMES_API_KEY`, `WINDOWS_MCP_AUTH_KEY` 추가
@@ -123,7 +124,7 @@ grep '^WINDOWS_MCP_AUTH_KEY=' ~/.hermes/.env | cut -d= -f2- | ssh Admin@<WIN_LAB
 OpenStack 보안 그룹(Kolla 호스트):
 
 ```bash
-source /tmp/osenv.sh
+# 00 문서의 os 헬퍼를 먼저 정의 (admin openrc → kolla_toolbox)
 A=$(os security group show sg-assistant -f value -c id)
 os security group rule create sg-windows --ingress --ethertype IPv4 --protocol tcp --dst-port 8000 \
   --remote-group "$A" --description "Windows-MCP (streamable-http) from lab-assistant"
@@ -137,7 +138,7 @@ Hermes 설정:
     headers: {Authorization: "Bearer ${WINDOWS_MCP_AUTH_KEY}"}
     trust: untrusted
     timeout: 180
-    tools: {resources: false, prompts: false}
+    tools: {exclude: [PowerShell, Registry], resources: false, prompts: false}   # 명령 실행은 ssh win (아래)
 ```
 
 #### 자동 로그온 (켜면 Windows-MCP가 저절로 뜨게)
@@ -167,7 +168,7 @@ scp -o ProxyJump=ubuntu@<ASSISTANT_FIP> scripts/windows-autologon.ps1 Admin@<WIN
 ```
 
 ```bash
-ssh master@<KOLLA_HOST> 'grep ^WIN_ADMIN_PASSWORD= ~/lab-secrets.env | cut -d= -f2-' | ssh -J ubuntu@<ASSISTANT_FIP> Admin@<WIN_LAB_IP> 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\Windows\Temp\windows-autologon.ps1 -User Admin; Remove-Item C:\Windows\Temp\windows-autologon.ps1'
+ssh <KOLLA_USER>@<KOLLA_HOST> 'grep ^WIN_ADMIN_PASSWORD= ~/lab-secrets.env | cut -d= -f2-' | ssh -J ubuntu@<ASSISTANT_FIP> Admin@<WIN_LAB_IP> 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\Windows\Temp\windows-autologon.ps1 -User Admin; Remove-Item C:\Windows\Temp\windows-autologon.ps1'
 ```
 
 #### RDP 창을 그냥 닫아도 되게
@@ -179,22 +180,69 @@ RDP로 접속하면 데스크톱 세션이 RDP로 넘어갑니다. 창을 닫으
 1. 예약 작업 `rdp-disconnect-to-console`을 만듭니다. RDP 연결이 끊기는 순간(이벤트 24, `TerminalServices-LocalSessionManager/Operational`) SYSTEM 권한으로 `tscon <세션ID> /dest:console`을 실행해 세션을 콘솔로 돌려보냅니다. 사용자는 **RDP 창을 그냥 닫으면 됩니다.**
 2. Windows-MCP 시작 스크립트를 "끝나면 15초 뒤 다시 시작" 루프로 감쌉니다. 세션이 잠깐 끊긴 순간 시작돼 바로 죽어도 저절로 살아납니다.
 
+**언제 실행하나**: Windows-MCP 설정([windows-mcp-setup.ps1](../scripts/hermes/windows-mcp-setup.ps1))을 처음 한 뒤 한 번, 그리고 **`windows-mcp install --force`를 다시 할 때마다(설정 스크립트 재실행 포함)** 다시 실행합니다. `install --force`가 `start-server.cmd`를 새로 만들면서 2번의 재시작 루프가 사라지기 때문입니다.
+
+**실행** (lab-assistant에서. `Admin`은 Administrators 그룹이라 SSH 세션이 관리자 권한입니다. 파일은 UTF-8 BOM을 유지해야 하므로 그대로 복사합니다. `win`은 아래 [Windows-MCP 도구 21개와 승인](#windows-mcp-도구-21개와-승인) 3단계에서 만드는 SSH 별칭입니다. 아직 없으면 `win` 대신 `Admin@<WIN_LAB_IP>`를 씁니다):
+
+```bash
+scp scripts/windows-rdp-autoconsole.ps1 win:C:/Windows/Temp/
+ssh win 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\Windows\Temp\windows-rdp-autoconsole.ps1; Remove-Item C:\Windows\Temp\windows-rdp-autoconsole.ps1'
+```
+
+**확인**: `ssh win 'Get-ScheduledTask rdp-disconnect-to-console | Select TaskName,State; Select-String -Path C:\Users\Admin\.windows-mcp\start-server.cmd -Pattern ":loop"'` → 작업이 `Ready`, `:loop` 한 줄이 보이면 됩니다.
+
 #### 평소에는 꺼 두기 (전원 제어 전용 명령)
 
-윈도우 VM은 평소 꺼 두고, 봇이 필요할 때 켜고 끕니다. 봇에게 OpenStack 관리자 권한을 주지 않으려고 **Kolla 호스트에 켜기·끄기·상태만 하는 명령**을 두고, 비서 VM에는 그 명령만 실행되는 SSH 키를 줍니다.
+윈도우 VM은 평소 꺼 두고, 봇이 필요할 때 켜고 끕니다. 전원 조작을 **단순하고 범위가 좁은 한 가지 명령**으로 두려고, Kolla 호스트에 켜기·끄기·상태만 하는 명령을 두고 비서 VM에는 그 명령만 실행되는 SSH 키를 줍니다. 봇은 이와 별도로 감사 로그가 남는 OpenStack 관리자 래퍼 `osadmin`도 갖고 있습니다([07 문서](07-openstack-agent.md#전체-admin-권한-주기-이-구성의-최종-선택)). 전원은 `osadmin` 대신 이 명령을 쓰게 해서, 기다리기·상태 확인까지 한 번에 끝나고 규칙도 간단해집니다.
 
 - 명령: [scripts/lab-windows-power](../scripts/lab-windows-power) → Kolla 호스트 `/usr/local/bin/lab-windows-power` (root 소유, 755). `start | stop | status`만 받고 그 밖의 입력은 거부합니다.
-- 비서 VM 전용 키 `~/.ssh/kolla_power`를 Kolla 호스트 `~/.ssh/authorized_keys`에 강제 명령으로 등록합니다.
+  - 스크립트는 **Kolla 사용자(`<KOLLA_USER>`)의 비밀번호 없는 sudo**에 기댑니다(`sudo -n cat /etc/kolla/admin-openrc.sh`, `sudo -n docker exec`). sudo가 비밀번호를 물으면 실패합니다.
+  - admin 자격증명은 `docker exec` 인자(ps로 보임)가 아니라 권한 600 임시 env-file(`--env-file`, 끝나면 삭제)로 넘깁니다.
 
-  ```
-  command="/usr/local/bin/lab-windows-power",from="<ASSISTANT_FIP>",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... lab-windows-power@lab-assistant
-  ```
+설치 순서:
 
-  비서 VM이 외부로 나갈 때는 Floating IP로 SNAT되므로 `from=`에는 Floating IP를 씁니다.
-- 비서 VM `~/.ssh/config`에 `Host winpower`(Kolla 호스트, `IdentityFile ~/.ssh/kolla_power`)를 둡니다. 사용법은 `ssh winpower status|start|stop`입니다.
+1. 비서 VM에서 전용 키를 만듭니다. 무인으로 써야 하므로 암호 없음. 공개키 한 줄만 Kolla 호스트로 옮깁니다(비밀 아님).
+
+   ```bash
+   ssh-keygen -t ed25519 -N "" -C "lab-windows-power@lab-assistant" -f ~/.ssh/kolla_power
+   cat ~/.ssh/kolla_power.pub
+   ```
+
+2. Kolla 호스트에 명령을 설치하고 sudo를 확인합니다.
+
+   ```bash
+   sudo install -o root -g root -m 755 scripts/lab-windows-power /usr/local/bin/lab-windows-power
+   sudo -n true && echo "passwordless sudo OK"
+   ```
+
+3. Kolla 호스트 `~/.ssh/authorized_keys`에 **강제 명령 + `restrict`**로 등록합니다. `restrict`는 포트·agent·X11 포워딩, pty, `~/.ssh/rc`를 모두 끕니다.
+
+   ```
+   restrict,command="/usr/local/bin/lab-windows-power",from="<ASSISTANT_FIP>" ssh-ed25519 AAAA... lab-windows-power@lab-assistant
+   ```
+
+   비서 VM이 LAN으로 나갈 때는 Floating IP로 SNAT되므로 `from=`에는 비서 VM의 Floating IP를 씁니다.
+
+4. 비서 VM `~/.ssh/config`에 별칭을 두고 호스트 키를 등록합니다.
+
+   ```
+   Host winpower
+     HostName <KOLLA_HOST>
+     User <KOLLA_USER>
+     IdentityFile ~/.ssh/kolla_power
+     IdentitiesOnly yes
+     ConnectTimeout 10
+   ```
+
+   ```bash
+   ssh-keyscan -t ed25519 <KOLLA_HOST> >> ~/.ssh/known_hosts
+   ssh winpower status        # lab-windows: SHUTOFF 또는 ACTIVE
+   ```
+
+- 사용법: `ssh winpower status|start|stop`
 - 검증 (2026-10-21):
-  - 다른 명령(`ssh winpower "cat /etc/kolla/passwords.yml"`)은 `usage`로 거부됩니다.
-  - 셸 접속은 `PTY allocation request failed`로 막힙니다.
+  - 다른 명령(`ssh winpower "cat /etc/kolla/passwords.yml"`, `ssh winpower "bash -c id"`)은 `usage`로 거부됩니다.
+  - 셸 접속은 `PTY allocation request failed`로, 포트 포워딩(`ssh -L`)은 `administratively prohibited`로 막힙니다.
   - `stop`은 87초 걸리고 Windows 이벤트에 정상 종료(1074 → 109 → 13)가 남습니다.
   - `start` 후 `ssh win`은 약 30초, Windows-MCP 8000 포트는 39초 뒤 열립니다.
 - Hermes는 끊긴 MCP 서버를 5분마다 다시 연결합니다(`_PARKED_RETRY_INTERVAL = 300`). 켠 직후에는 `ssh win`을 먼저 쓰고, GUI 도구는 몇 분 뒤에 씁니다. 바로 쓰려면 Discord에서 `/reload-mcp`를 보냅니다.
@@ -311,7 +359,7 @@ hermes mcp list
 hermes mcp test gns3      # ✓ Connected, Tools discovered: 76 (등록 시 11개 제외 → 65)
 hermes mcp test vnc       # ✓ 6
 hermes mcp test netmiko   # ✓ 7
-hermes mcp test windows   # 사용자 로그온 상태에서만 ✓
+hermes mcp test windows   # VM이 켜져 있으면 ✓ (자동 로그온). 꺼져 있으면 먼저 ssh winpower start 후 1~5분 대기
 
 # 독립 클라이언트 (임시 venv, 키는 env에서 읽고 출력 안 함)
 python3 -m venv /tmp/mcpcli && /tmp/mcpcli/bin/pip install -q mcp
@@ -334,13 +382,13 @@ nc -vz -w3 <FLOATING_IP_WINDOWS> 8000 # LAN/Kolla 호스트: 타임아웃이어�
 | GNS3 MCP | 연결 ✓, 76개 발견, 패턴 4개로 11개 제외 → 65개 |
 | mcp-vnc | 6개 ✓, `vnc_screenshot` 1280x800 캡처 성공(VNC 인증 정상) |
 | netmiko-mcp | 7개 ✓ (`list_groups, list_devices, send_show_command, send_show_command_to_group, list_device_outputs, read_device_output, ping`) |
-| Windows-MCP | 설치·config·예약 작업(Ready)·방화벽·SG 완료. 임시 리스너로 8000 경로 확인(비서 ✓ / LAN ✗). **도구 목록은 미확인** — 로그온한 사용자가 없어 서버가 "No active interactive desktop"으로 종료 |
+| Windows-MCP | 자동 로그온 후 서버 기동 ✓, 21개 중 `PowerShell`·`Registry` 제외 **19개 노출**(`hermes mcp list`에 `-2 excluded`). 8000 경로: 비서 ✓ / LAN ✗. 평소 VM은 꺼 두고 `ssh winpower start`로 켬 |
 
 ## 트러블슈팅 (gotchas)
 
-- **Windows-MCP가 안 뜸 / `hermes mcp test windows` 타임아웃**: 로그온 세션이 없으면 정상입니다. `query user`로 확인하고 RDP로 로그온하세요. 로그: `C:\Users\Admin\.windows-mcp\server.error.log`.
+- **Windows-MCP가 안 뜸 / `hermes mcp test windows` 타임아웃**: 먼저 `ssh winpower status`로 VM이 켜져 있는지 봅니다. 꺼져 있으면 `ssh winpower start` 후 기다립니다(자동 로그온 약 40초, Hermes 재연결 최대 5분 또는 Discord `/reload-mcp`). 켜져 있는데도 안 뜨면 `ssh win 'query user'`로 콘솔 세션이 있는지 보고, 없으면 [자동 로그온](#자동-로그온-켜면-windows-mcp가-저절로-뜨게) 설정을 확인합니다. 로그: `C:\Users\Admin\.windows-mcp\server.error.log`.
 - **`UnicodeEncodeError: 'cp949'`**: 한국어 Windows에서 `windows-mcp --help`/`install` 출력 시 발생. `$env:PYTHONUTF8="1"` 후 실행. `install`이 트레이스백을 내도 작업은 등록됩니다.
-- **`windows-mcp install --force`를 다시 하면** `start-server.cmd`가 재생성되어 `PYTHONUTF8`/텔레메트리 줄이 사라집니다. 설정 스크립트를 다시 실행하세요.
+- **`windows-mcp install --force`를 다시 하면** `start-server.cmd`가 재생성되어 `PYTHONUTF8`/텔레메트리 줄과 재시작 루프가 사라집니다. 설정 스크립트(windows-mcp-setup.ps1)를 다시 실행한 **다음** [windows-rdp-autoconsole.ps1](#rdp-창을-그냥-닫아도-되게)도 다시 실행하세요.
 - **README와 0.8.8 차이**: README의 `--no-control`, `[control] enabled=false`는 0.8.8에 없습니다.
 - **원격 PowerShell에 stdin 넘기기**: 기본 셸이 PowerShell이면 `ssh … '$input | powershell -File …'`처럼 `$input`으로 파이프해야 합니다. 여러 줄 here-string은 `-Command -`(stdin 스크립트)에서 깨지므로 `.ps1` 파일로 복사해 `-File`로 실행하세요.
 - **netmiko-mcp `No module named 'mcp.server.fastmcp'`**: `mcp` 2.x가 깔린 것. `pip install "mcp<2"`.

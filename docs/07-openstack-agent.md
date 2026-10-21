@@ -12,8 +12,12 @@
 | 3 | 애플리케이션 크리덴셜 access rules | 허용 목록에 없는 API 경로·메서드 전부(**DELETE는 어디에도 없음**), Keystone API도 차단 |
 | (+) | 래퍼 `oslab` + 봇 규칙 + 명령 차단 패턴 | 봇이 실수로 위험한 명령을 시도하는 것 자체를 줄임 (보안 경계는 1~3) |
 
+> 이 3중 방어는 **lab-agent 경로**에 대한 것입니다. 최종 구성은 봇에게 admin 키(`osadmin`)도 함께 줬으므로([전체 admin 권한 주기](#전체-admin-권한-주기-이-구성의-최종-선택)), 실제로는 감사 로그와 실수 방지 장치에 기댑니다. 한계는 [알려진 한계](#알려진-한계)에 정리했습니다.
+
 - 삭제는 **사람이 합니다**(Horizon 또는 admin CLI).
 - 이 문서의 값(2026-10-21 구축 기준): Kolla-Ansible 2026.1 (kolla-ansible 22.2.x, Nova 33.0.x), python-openstackclient 10.4.0, Kali 2026.2.
+
+- **외부 통신(egress)은 제한하지 않습니다(사용자 선택).** 원래 가이드의 "허용된 API만 나가기"는 적용하지 않았습니다. 봇이 sudo와 OpenStack admin을 가진 상태에서는 비서 VM 안의 방화벽이나 보안그룹 egress 규칙은 봇이 스스로 풀 수 있어 실효가 낮다고 판단했습니다. 필요해지면 방화벽을 봇이 건드릴 수 없는 곳(예: Kolla 호스트의 프록시 + 허용 목록)에 두고, 승인은 봇이 모르는 비밀번호로 하는 방식을 권합니다.
 
 ## 사전조건
 
@@ -25,8 +29,8 @@
 | 자리표시자 | 예 (이 홈랩) |
 |---|---|
 | `<VIP>` | Kolla 내부 VIP `192.168.0.110` |
-| `<PROVIDER_NET_ID>` | `openstack network show provider -f value -c id` |
-| `<BRIDGE_PORT_MAC>` | `openstack port show lab-gns3-bridge -f value -c mac_address` |
+| `<PROVIDER_NET_ID>` | `os network show provider -f value -c id` |
+| `<BRIDGE_PORT_MAC>` | `os port show lab-gns3-bridge -f value -c mac_address` |
 
 아래에서 `os` 는 Kolla 호스트에서 admin 권한으로 `kolla_toolbox` 안의 `openstack` 을 부르는 셸 함수입니다.
 
@@ -212,7 +216,7 @@ os flavor create --vcpus 2 --ram 8192 --disk 60 --public lab.medium
 
 ### 6. lab-assistant: 클라이언트 · `oslab` · 스킬
 
-API 도달 확인(비서 VM 10.10.0.52 → VIP는 lab-router SNAT을 거쳐 닿습니다):
+API 도달 확인(비서 VM `<ASSISTANT_LAB_IP>` → VIP는 lab-router SNAT을 거쳐 닿습니다):
 
 ```bash
 for p in 5000 8774 9292 9696; do curl -s -o /dev/null -w "$p %{http_code}\n" http://<VIP>:$p/; done
@@ -267,6 +271,8 @@ install -D -m 644 SKILL.md ~/.claude/skills/openstack-lab/SKILL.md          # Cl
 - `~/.hermes/SOUL.md` (ops): "OpenStack 작업은 `oslab` 으로만 한다. `openstack` 을 직접 부르거나 `clouds.yaml` 을 읽지 않는다. 삭제·rebuild·resize·스냅샷은 사람이 한다. 새 리소스 이름은 `lab-`. 실습 VM은 끝나면 stop."
 - `~/.claude/CLAUDE.md`: 같은 내용 한 줄.
 
+> 위 문구는 lab-agent만 쓰던 단계의 규칙입니다. admin 경로를 추가한 **현재 규칙**은 [전체 admin 권한 주기](#전체-admin-권한-주기-이-구성의-최종-선택) 6단계의 예시 파일(`osadmin` 사용, 핵심 리소스는 묻기)을 쓰세요.
+
 명령 차단 패턴:
 
 ```yaml
@@ -281,11 +287,12 @@ install -D -m 644 SKILL.md ~/.claude/skills/openstack-lab/SKILL.md          # Cl
 ```json
 // ~/.claude/settings.json → permissions.deny 에 추가
 "Bash(openstack *)", "Bash(*/openstack *)", "Bash(*/.venvs/openstack/*)",
-"Read(~/.config/openstack/**)", "Edit(~/.config/openstack/**)", "Edit(~/.local/bin/oslab)"
+"Read(~/.config/openstack/**)", "Edit(~/.config/openstack/**)", "Edit(~/.local/bin/oslab)",
+"Bash(*clouds.yaml*)"
 ```
 
 - Claude Code에서 `Bash(openstack:*)` 와 `Bash(openstack *)` 는 같은 뜻입니다. 문서는 공백 형식을 권장합니다.
-- 이 패턴들은 봇이 흔히 쓰는 형태만 막습니다. 공식 문서도 "보안 경계가 아니다"라고 합니다. 진짜 경계는 1~3층입니다.
+- 이 패턴들은 봇이 흔히 쓰는 형태만 막습니다. 공식 문서도 "보안 경계가 아니다"라고 합니다. lab-agent 키에 대한 진짜 경계는 1~3층입니다(admin 경로는 [알려진 한계](#알려진-한계) 참고).
 - 적용: `systemctl --user restart hermes-gateway`. 확인: `hermes skills list | grep openstack-lab` (ops에는 있고 `reader skills list` 에는 없어야 함).
 
 ## 검증
@@ -333,7 +340,7 @@ install -D -m 644 SKILL.md ~/.claude/skills/openstack-lab/SKILL.md          # Cl
 | 장치 | 내용 |
 |---|---|
 | admin **application credential** | 사용자 비밀번호 대신 폐기 가능한 키. `lab-admin-bot`, 역할 admin, 만료 1년 |
-| `osadmin` 래퍼 | `openstack --os-cloud lab-admin` 에 인자를 그대로 넘기고 **감사 로그** `~/.local/state/osadmin/audit.log` 를 남김 (시간, 호출자, 인자, 종료 코드) |
+| `osadmin` 래퍼 | `openstack --os-cloud lab-admin` 에 인자를 그대로 넘기고 **감사 로그** `~/.local/state/osadmin/audit.log` 를 남김 (시간, 호출자, 작업 폴더, 인자, 종료 코드). 비밀 옵션 값은 `***`로 가림(아래) |
 | 핵심 VM Nova **lock** | `lab-gns3`, `lab-assistant`, `lab-windows`. admin은 풀 수 있으므로 실수 방지용 한 겹 |
 | 규칙 (SOUL.md / CLAUDE.md / 스킬) | 핵심 리소스(위 VM, provider·lab-net·lab-bridge·lab-router, sg-*, Keystone, 기본 이미지)는 바꾸거나 지우기 전에 사용자에게 묻기. `lab-` 실습 리소스는 묻지 않고 정리 가능 |
 | `openstack` 직접 호출 차단 | Hermes `approvals.deny` 의 `*openstack *` 패턴, Claude Code `Bash(openstack *)` deny → 반드시 로그가 남는 `osadmin` 경유 |
@@ -343,11 +350,15 @@ install -D -m 644 SKILL.md ~/.claude/skills/openstack-lab/SKILL.md          # Cl
 1. admin 키를 만듭니다. Kolla 호스트에서 admin으로 실행합니다. 출력 JSON의 키 이름이 `ID`·`Secret`처럼 대문자일 수 있으니 소문자로 바꿔 읽습니다.
 
    ```bash
-   openstack application credential create lab-admin-bot --role admin --expiration 2027-10-21T00:00:00 -f json > /tmp/cred.json
+   os application credential create lab-admin-bot --role admin --expiration 2027-10-21T00:00:00 -f json > /tmp/cred.json
    ```
 
 2. 비서 VM `~/.config/openstack/clouds.yaml`(600)에 `lab-admin` 클라우드를 추가합니다. 형식은 `lab-agent`와 같고 `auth_type: v3applicationcredential` 입니다. 임시 파일은 `shred -u`로 지웁니다.
 3. 래퍼 [scripts/openstack/osadmin](../scripts/openstack/osadmin) → `~/.local/bin/osadmin` (755)
+   - 감사 로그 디렉터리 `~/.local/state/osadmin/`는 700으로 만듭니다.
+   - **비밀값 가림**: `--password`, `--secret`, `--admin-pass`, `--os-password`, `--os-token`, `--os-application-credential-secret` 의 값은 `--secret X`, `--secret=X` 두 형태 모두 로그에 `***` 로 남깁니다. 실제 명령에는 원래 값이 그대로 넘어갑니다.
+   - 인자는 `printf %q` 로 따옴표 처리해 한 줄에 남기므로, 줄바꿈이 든 인자로 로그 줄을 꾸며 넣을 수 없습니다.
+   - 확인: `osadmin user set --password test-only-value 00000000000000000000000000000000 2>/dev/null; tail -n 2 ~/.local/state/osadmin/audit.log` → `--password ***`. 없는 사용자 ID라 명령은 실패하고 아무것도 바뀌지 않지만, 로그 형식은 확인됩니다.
 4. 스킬 [scripts/openstack/openstack-admin/SKILL.md](../scripts/openstack/openstack-admin/SKILL.md) → Hermes `~/.hermes/skills/devops/openstack-admin/`, Claude Code `~/.claude/skills/openstack-admin/`. reader 프로필에는 넣지 않습니다.
 5. 핵심 VM을 잠급니다.
 
@@ -367,14 +378,14 @@ install -D -m 644 SKILL.md ~/.claude/skills/openstack-lab/SKILL.md          # Cl
 **폐기**: 키가 유출됐거나 봇을 믿기 어려워지면 아래 한 줄로 끊습니다. lab-agent 경로는 계속 동작합니다.
 
 ```bash
-openstack application credential delete lab-admin-bot
+os application credential delete lab-admin-bot   # Kolla 호스트, admin 헬퍼
 ```
 
 ## 남은 위험 (알고 쓰기)
 
 - **외부망 직접 연결 → 해결함 (provider 공유 해제)**
   - 문제: 처음에는 `provider`가 `shared=True`였습니다. Nova의 `network:attach_external_network` 검사는 공유된 외부망에는 적용되지 않아서, 래퍼를 거치지 않으면 lab-agent가 사용자 LAN(192.168.0.0/24)에 VM을 바로 붙일 수 있었습니다.
-  - 조치: `openstack network set --no-share provider`.
+  - 조치: `os network set --no-share provider`.
     - 기존 VM들은 provider에 직접 붙지 않고 Floating IP만 씁니다. provider 포트는 `network:floatingip` 3개와 `network:router_gateway` 1개뿐입니다.
     - 외부망(`router:external=True`)은 공유하지 않아도 모든 프로젝트가 라우터 게이트웨이와 Floating IP로 쓸 수 있습니다.
   - 검증 (2026-10-21, 앱 크리덴셜로 래퍼 없이 직접 호출):
@@ -385,6 +396,19 @@ openstack application credential delete lab-admin-bot
   - 대안: Neutron 정책으로 `role:lab-agent`의 provider 포트 생성을 막는 방법도 있습니다([`scripts/openstack/neutron-policy.proposed.yaml`](../scripts/openstack/neutron-policy.proposed.yaml), `reconfigure --tags neutron` 필요). 공유 해제만으로 충분해서 적용하지 않았습니다.
 - 쿼터 안에서는 VM을 계속 만들 수 있습니다(최대 3대/12 GB). 지우는 것은 사람이 해야 하므로 주기적으로 `os server list --project lab-agent` 를 확인하세요.
 - Hermes의 기존 차단 패턴 `*reboot*` 때문에 Hermes에서 `oslab server reboot` 은 막힙니다(stop/start로 대신). `*authorized_keys*` 때문에 터미널 명령으로 `ssh_authorized_keys` 가 든 user-data 파일을 쓰는 것도 막힙니다(파일 도구로 쓰거나 사람이 준비).
+
+## 알려진 한계
+
+- **봇은 `ubuntu` 사용자로 돌고, 이 사용자는 비밀번호 없는 sudo를 갖고, OpenStack admin 키도 갖습니다.**
+  - Hermes(ops)와 Claude Code가 모두 lab-assistant의 `ubuntu`로 실행됩니다. 이 사용자는 Ubuntu 클라우드 이미지 기본값대로 `sudo` 에 비밀번호가 없습니다.
+  - `~/.config/openstack/clouds.yaml` 에는 `lab-admin`(admin 역할) 키가 있습니다. 봇의 셸에서 이 파일을 읽거나 `~/.venvs/openstack/bin/openstack --os-cloud lab-admin` 을 직접 부르는 것은 **차단 패턴(Hermes `approvals.deny`, Claude Code deny 규칙)과 봇 규칙으로만** 막혀 있습니다. 둘 다 문자열 패턴이라 우회할 수 있습니다(예: 다른 이름의 스크립트, 인코딩된 명령).
+  - 그래서 `oslab` 과 `osadmin` 은 **가드레일과 감사 기록**이지, 하드 경계가 아닙니다. `osadmin` 감사 로그도 같은 사용자가 쓰는 파일이라 봇이 지우거나 고칠 수 있습니다.
+  - Nova lock도 admin이면 풀 수 있으므로 실수 방지용일 뿐입니다.
+- **진짜 경계를 만들려면** (이 구성에서는 **선택에 따라 하지 않았습니다**)
+  - 봇 전용 리눅스 계정을 따로 만들고 sudo를 주지 않거나 필요한 명령만 허용합니다(`sudoers` 의 명령 제한).
+  - admin 키는 그 계정이 읽을 수 없는 곳(다른 사용자 소유, 600)에 두고, `osadmin` 을 `sudo -u <키 소유자> osadmin ...` 처럼 정해진 명령으로만 부르게 합니다. 감사 로그도 그 소유자만 쓸 수 있게 합니다.
+  - 또는 admin 경로를 없애고 lab-agent 경로(1~3층)만 씁니다. 이 경우 위의 1~3층은 실제 경계로 동작합니다(lab-agent 키는 admin이 아님).
+- **사고가 났을 때**: [폐기](#전체-admin-권한-주기-이-구성의-최종-선택) 절의 `os application credential delete lab-admin-bot` 으로 admin 키를 끊고, 비서 VM의 `osadmin` 감사 로그와 Kolla 호스트의 `os server event list <서버>` 를 대조합니다. 감사 로그는 봇이 고칠 수 있으므로 OpenStack 쪽 기록이 기준입니다.
 
 ## 트러블슈팅
 

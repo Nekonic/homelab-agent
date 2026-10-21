@@ -14,7 +14,7 @@ MCP 서버(GNS3, Windows-MCP, mcp-vnc, netmiko) 설치·검증은 [05 문서](05
 
 ## 사전조건
 
-- [01](01-openstack-reset-and-base.md)~[03](03-windows-vm.md) 완료, `lab-assistant`에 Hermes 설치됨 (`~/.local/bin/hermes`, `hermes --version` → v0.22.x)
+- [01](01-openstack-reset-and-base.md)~[03](03-windows-vm.md) 완료 (`lab-assistant` VM이 떠 있고 SSH 접속 가능). Hermes는 아래 1단계에서 설치합니다.
 - 자리표시자
   - `<ASSISTANT_FIP>`: lab-assistant Floating IP (예: `192.168.0.202`)
   - `<YOUR_DISCORD_USER_ID>`: 본인 Discord 사용자 ID(숫자)
@@ -38,10 +38,29 @@ MCP 서버(GNS3, Windows-MCP, mcp-vnc, netmiko) 설치·검증은 [05 문서](05
 
 ```bash
 ssh -i ~/.ssh/<lab-key> ubuntu@<ASSISTANT_FIP>
-export PATH=$HOME/.local/bin:$PATH
 ```
 
-### 0. 남은 업데이트 잠금 파일 정리
+### 1. Hermes 설치
+
+[공식 설치 문서](https://hermes-agent.nousresearch.com/docs/getting-started/installation)의 Linux 설치 스크립트를 씁니다. 스크립트는 코드를 `~/.hermes/hermes-agent/`에, 실행 파일(래퍼)을 `~/.local/bin/hermes`에 두고, 사용자 데이터는 `~/.hermes/`에 둡니다. 필요한 것: `git`, `curl`, `tar`, `sha256sum`(Ubuntu 24.04 기본 포함). uv·Python·Node.js 등은 설치 스크립트가 알아서 받습니다.
+
+```bash
+curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+```
+
+> 원격 스크립트를 바로 실행하기 싫으면 먼저 받아서 읽어 본 뒤 실행합니다: `curl -fsSL https://hermes-agent.nousresearch.com/install.sh -o /tmp/hermes-install.sh && less /tmp/hermes-install.sh && bash /tmp/hermes-install.sh`
+
+현재 셸에 경로를 넣고 확인합니다(새로 로그인하면 `~/.bashrc`가 처리합니다. 안 되면 `source ~/.bashrc`).
+
+```bash
+export PATH=$HOME/.local/bin:$PATH
+hermes --version      # 이 문서는 v0.22.2 기준
+hermes doctor         # 빠진 의존성이 있으면 고치는 법을 알려 줌
+```
+
+> 설치 스크립트는 그때의 최신판을 설치합니다. v0.22.x보다 새 버전이면 아래 설정 키가 바뀌었을 수 있으니 번들 문서(`~/.hermes/hermes-agent/website/docs/`)로 확인하세요.
+
+### 2. 남은 업데이트 잠금 파일 정리
 
 중단된 세션이 남긴 `~/.hermes/.hermes-update-in-progress.lock`(0바이트)이 있으면, hermes 프로세스가 없는지 확인 후 지웁니다.
 
@@ -50,14 +69,14 @@ pgrep -af 'hermes' | grep -v pgrep     # 아무것도 없어야 함
 rm -f ~/.hermes/.hermes-update-in-progress.lock
 ```
 
-### 1. 원본 백업
+### 3. 원본 백업
 
 ```bash
 cp ~/.hermes/config.yaml ~/.hermes/config.yaml.orig-template
 cp ~/.hermes/.env ~/.hermes/.env.orig-template && chmod 600 ~/.hermes/.env.orig-template
 ```
 
-### 2. ops(기본 프로필) 설정
+### 4. ops(기본 프로필) 설정
 
 [scripts/hermes/config.ops.example.yaml](../scripts/hermes/config.ops.example.yaml)의 키를 `~/.hermes/config.yaml`에 병합합니다. 템플릿(주석 포함)을 통째로 덮어쓰지 말고 **해당 키만 바꾸세요**(`_config_version` 유지). 스칼라는 CLI로도 됩니다.
 
@@ -91,7 +110,7 @@ mkdir -p ~/hermes-work/ops ~/hermes-work/reader && chmod 700 ~/hermes-work/*
 | `approvals.cron_mode`/`single_query_mode`/`unattended_mode` | `deny` | 사람이 없는 실행 경로는 위험 명령 차단 |
 | `approvals.deny` | `*Format-Volume*`, `*diskpart*`, `*Remove-Item*-Recurse*`, `curl\|sh`류, ssh 터널(`-R`/`-D`), `.env`/키 파일 접근 등 | yolo·승인보다 먼저 무조건 차단(fnmatch, 대소문자 무시). YAML에서는 반드시 따옴표 |
 | `security.allow_private_urls` | `false` | 웹 도구 SSRF 차단 유지(MCP 서버 연결과는 무관) |
-| `security.allow_lazy_installs` | `false` | 채팅 중 패키지 자동 설치 금지 → Discord 의존성은 아래 3단계에서 명시 설치 |
+| `security.allow_lazy_installs` | `false` | 채팅 중 패키지 자동 설치 금지 → Discord 의존성은 아래 5단계에서 명시 설치 |
 | `agent.bot_mode_protocol` | `false` | `message_agent`(봇 간 메시지) 주입 끔 |
 | `unauthorized_dm_behavior` | `ignore` | 허용되지 않은 DM에 페어링 코드도 보내지 않음 |
 | `discord.require_mention` | `true` | 서버 채널에서는 `@멘션`할 때만 답함. DM은 항상 답함. 서버에 다른 사람이 있다면 `DISCORD_ALLOWED_CHANNELS=<채널ID>`로 전용 채널 하나로 묶거나, `DISCORD_IGNORED_CHANNELS=*`로 DM 전용으로 만듦 |
@@ -99,7 +118,7 @@ mkdir -p ~/hermes-work/ops ~/hermes-work/reader && chmod 700 ~/hermes-work/*
 | `platform_toolsets.discord` | terminal, file, web, … + `gns3, windows, vnc, netmiko` | MCP 서버 이름을 적으면 그 서버만 허용(allowlist). browser·code_execution·delegation·cronjob 제외 |
 | `mcp_servers.*.trust` | `untrusted` | `readOnlyHint`가 없는 MCP 도구 호출은 전부 승인 필요(이번 서버들은 주석이 없어 사실상 모든 호출이 승인 대상) |
 
-### 3. Discord 의존성 명시 설치
+### 5. Discord 의존성 명시 설치
 
 `allow_lazy_installs: false`이므로 discord.py를 미리 설치합니다.
 
@@ -108,7 +127,7 @@ hermes pm install --extra discord
 hermes doctor | grep discord.py      # ✓ discord.py
 ```
 
-### 4. `.env` 자리표시자
+### 6. `.env` 자리표시자
 
 `~/.hermes/.env` 끝에 [scripts/hermes/ops.env.example](../scripts/hermes/ops.env.example) 형식으로 추가하고 **값은 비워 둡니다**(사용자가 채움). MCP 비밀값(`GNS3_API_KEY`, `WINDOWS_MCP_AUTH_KEY`, `VNC_PASSWORD`)은 [05 문서](05-mcp.md)에서 채웁니다.
 
@@ -116,7 +135,7 @@ hermes doctor | grep discord.py      # ✓ discord.py
 chmod 600 ~/.hermes/.env
 ```
 
-### 5. reader 프로필
+### 7. reader 프로필
 
 기본 프로필을 **복제하지 않고** 빈 프로필로 만듭니다(복제하면 ops의 MCP 비밀값이 따라옴).
 
@@ -136,7 +155,7 @@ reader 제한:
 - `agent.disabled_toolsets`: terminal, code_execution, browser, file, computer_use, delegation, cronjob, skills, image_gen, video_gen, discord_admin, kanban, connections
 - `mcp_servers: {}`
 
-### 6. 게이트웨이 서비스 (설치만, 시작 안 함)
+### 8. 게이트웨이 서비스 (설치만, 시작 안 함)
 
 ```bash
 sudo loginctl enable-linger ubuntu

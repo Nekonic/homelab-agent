@@ -1,0 +1,16 @@
+[
+  {"service": "compute", "method": "GET",  "path": "/v2.1/**"},
+  {"service": "compute", "method": "POST", "path": "/v2.1/servers"},
+  {"service": "compute", "method": "POST", "path": "/v2.1/servers/*/action"},
+  {"service": "image",   "method": "GET",  "path": "/v2/**"},
+  {"service": "network", "method": "GET",  "path": "/v2.0/**"},
+  {"service": "network", "method": "POST", "path": "/v2.0/networks"},
+  {"service": "network", "method": "POST", "path": "/v2.0/subnets"},
+  {"service": "network", "method": "POST", "path": "/v2.0/ports"},
+  {"service": "network", "method": "POST", "path": "/v2.0/routers"},
+  {"service": "network", "method": "POST", "path": "/v2.0/security-groups"},
+  {"service": "network", "method": "POST", "path": "/v2.0/security-group-rules"},
+  {"service": "network", "method": "POST", "path": "/v2.0/floatingips"},
+  {"service": "network", "method": "PUT",  "path": "/v2.0/routers/*/add_router_interface"},
+  {"service": "network", "method": "PUT",  "path": "/v2.0/routers/*"}
+]

@@ -1,0 +1,9 @@
+# PROPOSED (not applied yet) - /etc/kolla/config/neutron/policy.yaml
+# Why: the external network "provider" is shared=True, so a member (incl. lab-agent) can
+#      create a port / boot a VM directly on the user's LAN. Nova's
+#      network:attach_external_network check is skipped for shared external networks.
+# Effect: tokens with role lab-agent cannot create ports on the provider network.
+#         Router gateway / floating IP ports are created internally by Neutron and are not affected.
+# Default rule taken from: docker exec neutron_server oslopolicy-sample-generator --namespace neutron
+# Apply: kolla-ansible reconfigure -i <inventory> --tags neutron   (restarts neutron containers)
+"create_port": "((rule:admin_only) or (role:member and project_id:%(project_id)s) or rule:service_api) and not (role:lab-agent and '<PROVIDER_NET_ID>':%(network_id)s)"

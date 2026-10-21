@@ -74,6 +74,7 @@ ASCII 버전:
 | 04 | [docs/04-hermes-agent.md](docs/04-hermes-agent.md) | AI 비서 VM: Hermes Agent (ChatGPT Plus → OpenRouter 무료 모델 폴백), reader/ops 봇 분리, 승인 정책 | 완료 (OAuth·API 키·Discord 토큰은 수동) |
 | 05 | [docs/05-mcp.md](docs/05-mcp.md) | MCP 연동: GNS3 내장 MCP, Windows-MCP(자동 로그온), mcp-vnc(예비), netmiko_mcp | 완료 |
 | 06 | [docs/06-claude-code.md](docs/06-claude-code.md) | Claude Code + Discord 채널 (Claude 구독), 권한 relay, systemd+tmux | 서버 준비 완료 (로그인·봇 토큰·페어링은 수동) |
+| 07 | [docs/07-openstack-agent.md](docs/07-openstack-agent.md) | 봇에게 OpenStack 최소 권한 주기: lab-agent 프로젝트·쿼터, Nova 정책, 앱 크리덴셜 access_rules, lab-bridge(GNS3 연결), Kali 이미지, `oslab` 스킬 | 완료 |
 | — | [docs/research/2026-10-agent-landscape.md](docs/research/2026-10-agent-landscape.md) | 셀프호스트 AI 비서 에이전트 비교 조사 (2026-10) | 참고 |
 
 ### 스크립트 / 설정 예시
@@ -88,6 +89,7 @@ ASCII 버전:
 | [scripts/gns3_server.conf.example](scripts/gns3_server.conf.example) | GNS3 server 설정 템플릿 |
 | [scripts/gns3server.service](scripts/gns3server.service) | GNS3 server systemd 유닛 |
 | [scripts/hermes/](scripts/hermes/) | Hermes 설정·`.env` 예시, netmiko 설정, Windows-MCP 설치 스크립트 |
+| [scripts/openstack/](scripts/openstack/) | Nova 정책, access_rules, `oslab` 래퍼, OpenStack 스킬 SKILL.md, netplan 예시 |
 | [scripts/claude-code/](scripts/claude-code/) | Claude Code systemd 유닛, CLAUDE.md 규칙, 권한 deny 예시 |
 
 ## 비밀값 관리

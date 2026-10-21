@@ -185,6 +185,20 @@ tmux ls
 
 기본값이 `requireMention: true`라서 그 채널에서도 `@봇`으로 멘션하거나 답장할 때만 반응합니다.
 
+`--allow <내 ID>`를 붙이면 그 채널에서도 나만 부를 수 있습니다. 서버에 다른 사람이 있다면 꼭 붙이세요. 권한 승인 버튼은 DM 허용 목록(`allowFrom`)으로 갑니다.
+
+```
+/discord:access group add <채널ID> --allow <내 ID>
+```
+
+`~/.claude/channels/discord/access.json`을 직접 고쳐도 됩니다. 메시지가 올 때마다 다시 읽으므로 재시작은 필요 없습니다.
+
+```json
+"groups": { "<채널ID>": { "requireMention": true, "allowFrom": ["<내 ID>"] } }
+```
+
+이 구성은 `#일반` 채널 하나를 이렇게 열었습니다(2026-10-21). 채널 ID는 봇 토큰으로 `GET /api/v10/guilds/<서버ID>/channels`를 호출해 찾았습니다.
+
 ## 검증
 
 - `systemctl --user status claude-discord`가 active
@@ -205,7 +219,7 @@ tmux ls
 |---|---|---|
 | ops | Hermes (GPT) | DM 또는 멘션 |
 | reader | Hermes (GPT) | 멘션 |
-| claude | Claude Code (Claude 구독) | DM |
+| claude | Claude Code (Claude 구독) | DM 또는 `#일반`에서 멘션 |
 
 ## 출처
 

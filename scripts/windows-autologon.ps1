@@ -4,17 +4,17 @@
 # https://learn.microsoft.com/troubleshoot/windows-server/user-profiles-and-logon/turn-on-automatic-logon
 #
 # 2026-10-21 확인 (Windows 11 build 26200, OpenStack VM):
-#   - LSA 비밀(Sysinternals Autologon 방식)로 넣으면 '재부팅'은 되지만(ARSO 덕분),
-#     전원을 껐다 켜면(nova stop/start) 자동 로그온이 되지 않았습니다.
+#   - LSA secret(Sysinternals Autologon 방식)으로 저장하면 ARSO 덕분에 재부팅 때는 자동 로그온되지만,
+#     전원을 껐다 켜면(nova stop/start) 자동 로그온되지 않았습니다.
 #   - 레지스트리 DefaultPassword 방식은 전원을 껐다 켜도 39초 만에 로그온됩니다.
 # 트레이드오프: 비밀번호가 HKLM Winlogon 키에 평문으로 남습니다(로컬 사용자가 읽을 수 있음).
-#   사용자가 Admin 하나뿐이고 보안 그룹으로 접근이 막힌 실습용 VM이라 감수합니다.
+#   사용자가 Admin 하나뿐이고 보안 그룹으로 접근이 막힌 실습 VM이라 이 위험을 감수합니다.
 #
-# 주의: Windows PowerShell 5에서 쓰려면 이 파일을 UTF-8 BOM으로 저장해야 합니다(저장소 파일은 BOM 포함).
+# 주의: Windows PowerShell 5에서 쓰려면 이 파일을 UTF-8 BOM으로 저장해야 합니다(repo의 파일은 BOM 포함).
 #
 # 사용법 (관리자 PowerShell, 비밀번호는 표준 입력 첫 줄로 전달 → [Console]::In.ReadLine()):
 #   (Kolla 호스트) sec WIN_ADMIN_PASSWORD | ssh lab-windows 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\Windows\Temp\windows-autologon.ps1 -User Admin'
-#   앞에 `$input |` 를 붙이지 않습니다(자식 powershell이 ssh의 stdin을 그대로 물려받음, docs/05 gotchas).
+#   앞에 `$input |` 를 붙이지 않습니다(자식 powershell이 ssh의 stdin을 그대로 물려받음, docs/05 Troubleshooting).
 # 해제:  powershell -File windows-autologon.ps1 -Disable
 
 param(

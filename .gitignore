@@ -1,4 +1,4 @@
-# 비밀값 — 저장소에 절대 커밋하지 않음
+# secret: repo에 절대 커밋하지 않음
 *.env
 .env*
 !*.env.example

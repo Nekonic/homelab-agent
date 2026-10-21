@@ -1,5 +1,5 @@
 # C:\Users\<user>\.windows-mcp\config.toml on lab-windows (written by windows-mcp-setup.ps1)
-# Contains a secret — keep it only on the Windows VM.
+# Contains a secret; keep it only on the Windows VM.
 [server]
 transport = "streamable-http"
 host      = "<WIN_LAB_IP>"

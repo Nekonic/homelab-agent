@@ -1,4 +1,4 @@
-# Hermes Agent v0.22.x — "reader" profile excerpt (~/.hermes/profiles/reader/config.yaml)
+# Hermes Agent v0.22.x: "reader" profile excerpt (~/.hermes/profiles/reader/config.yaml)
 # Created with:  hermes profile create reader --no-skills --description "..."
 # Self-contained: merge every key below into the reader config. The fallback / auth / approvals /
 # security blocks are copied verbatim from config.ops.example.yaml (approvals.deny is the SAME list,

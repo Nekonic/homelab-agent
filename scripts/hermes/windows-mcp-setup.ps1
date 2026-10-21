@@ -3,7 +3,7 @@
 # The auth key is read from stdin ([Console]::In.ReadLine()) so it never appears on a command line or in this file:
 #   (lab-assistant) grep -m1 '^WINDOWS_MCP_AUTH_KEY=' ~/.hermes/.env | cut -d= -f2- \
 #     | ssh win 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\Admin\windows-mcp-setup.ps1 -WinIp <WIN_LAB_IP> -AssistantIp <ASSISTANT_LAB_IP>'
-#   No `$input |` in front: the child powershell inherits the ssh session's stdin (docs/05 gotchas).
+#   No `$input |` in front: the child powershell inherits the ssh session's stdin (docs/05 Troubleshooting).
 param(
   [string]$WinIp       = "<WIN_LAB_IP>",        # e.g. 10.10.0.x  (bind address)
   [string]$AssistantIp = "<ASSISTANT_LAB_IP>",  # e.g. 10.10.0.y  (only allowed client)

@@ -3,7 +3,7 @@
 #   비밀번호는 표준 입력 첫 줄로만 받습니다(명령줄·파일에 남지 않음). 파일 ACL 은 사용자/SYSTEM/Administrators.
 # 사용 (Kolla 호스트, docs/03 §6):
 #   sec GNS3_PASSWORD | ssh lab-windows 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\Windows\Temp\windows-gns3-gui-config.ps1 -GnsHost <GNS3_LAB_IP>'
-# GUI 가 실행 중이면 끄고 실행합니다(종료할 때 GUI 가 자기 설정으로 덮어쓰기 때문).
+# GUI 가 실행 중이면 종료한 뒤 실행합니다(GUI 가 종료할 때 자기 설정으로 파일을 덮어쓰기 때문).
 param([string]$GnsHost = "<GNS3_LAB_IP>", [int]$Port = 3080, [string]$User = "admin")
 $ErrorActionPreference = "Stop"
 $pw = [Console]::In.ReadLine(); if ([string]::IsNullOrEmpty($pw)) { throw "password missing on stdin" }

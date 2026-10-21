@@ -1,8 +1,8 @@
-﻿# RDP 창을 그냥 닫아도 데스크톱이 잠기지 않게 하기 + Windows-MCP 자동 재시작
+﻿# RDP 창을 닫아도 데스크톱이 잠기지 않도록 설정 + Windows-MCP 자동 재시작
 #
 # 1) RDP 연결이 끊기면(이벤트 24, TerminalServices-LocalSessionManager) SYSTEM 권한으로
-#    그 세션을 콘솔로 돌려보냅니다(tscon). 데스크톱이 계속 살아 있어 Windows-MCP가 동작합니다.
-# 2) Windows-MCP 시작 스크립트를 "죽으면 15초 뒤 재시작" 루프로 감쌉니다.
+#    그 세션을 콘솔로 돌려보냅니다(tscon). 데스크톱 세션이 유지되므로 Windows-MCP가 계속 동작합니다.
+# 2) Windows-MCP 시작 스크립트를 "종료되면 15초 뒤 재시작" 루프로 감쌉니다.
 #    (세션이 잠깐 끊긴 사이 시작되면 "No active interactive desktop"으로 바로 종료되기 때문)
 #
 # 관리자 PowerShell에서 한 번 실행합니다. 주의: Windows PowerShell 5용이므로 UTF-8 BOM으로 저장되어 있어야 합니다.
@@ -12,8 +12,8 @@ New-Item -ItemType Directory -Force -Path $dir | Out-Null
 
 # ---- 1. 끊긴 RDP 세션을 콘솔로 ----
 # 주의: 이벤트 24(연결 끊김)는 RDP 창을 닫을 때뿐 아니라, RDP로 접속하는 순간 원래 콘솔 쪽 연결이
-# 끊길 때도 발생합니다. 이벤트만 보고 tscon 하면 방금 접속한 RDP 세션을 빼앗아 RDP 창이 꺼집니다
-# (2026-10-21 실제로 발생). 그래서 세션 상태(WTSConnectState)가 정말 "Disconnected(4)"일 때만 옮깁니다.
+# 끊길 때도 발생합니다. 이벤트만 보고 tscon 하면 방금 접속한 RDP 세션을 빼앗아 RDP 창이 닫힙니다
+# (2026-10-21 발생 확인). 따라서 세션 상태(WTSConnectState)가 "Disconnected(4)"일 때만 옮깁니다.
 # RDP로 접속 중이면 상태가 Active(0)라 아무것도 하지 않습니다. 판단 결과는 rdp-to-console.log 에 남깁니다.
 $handler = @'
 Start-Sleep -Seconds 3
@@ -78,7 +78,7 @@ if (Test-Path $start) {
   }
 }
 
-# 예전 방식의 바로가기는 이제 필요 없음
+# 이전 방식의 바로가기는 더 이상 필요 없으므로 삭제
 Remove-Item "C:\Users\Public\Desktop\RDP-disconnect-to-console.cmd" -ErrorAction SilentlyContinue
 
 "rdp-disconnect-to-console task registered; windows-mcp start script now restarts on exit"

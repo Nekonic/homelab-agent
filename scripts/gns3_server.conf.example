@@ -1,6 +1,6 @@
 # GNS3 server 3.1.0a6 설정 템플릿
 # 위치: /home/gns3/.config/GNS3/3.1/gns3_server.conf  (owner gns3, chmod 600)
-# <...> 자리표시자를 채운 사본은 저장소에 커밋하지 마세요.
+# <...> placeholder를 채운 사본은 repo에 커밋하지 마세요.
 #   <GNS3_JWT_SECRET>       : openssl rand -hex 32   (Kolla ~/lab-secrets.env 의 GNS3_JWT_SECRET)
 #   <GNS3_PASSWORD>         : 관리자 비밀번호 (컨트롤러 DB 최초 생성 시에만 적용, GNS3_PASSWORD)
 #   <GNS3_COMPUTE_PASSWORD> : openssl rand -hex 16   (GNS3_COMPUTE_PASSWORD)

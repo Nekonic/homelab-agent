@@ -1,12 +1,12 @@
 #!/bin/bash
 # lab-windows 전원 제어 전용 명령 (Kolla 호스트에 설치: /usr/local/bin/lab-windows-power)
 #
-# 비서 VM의 전용 SSH 키에 authorized_keys "command=" 로 묶어서, 그 키로는
+# lab-assistant 전용 SSH 키를 authorized_keys 의 "command=" 옵션으로 이 명령에 묶어, 그 키로는
 # 이 명령의 start | stop | status 외에는 아무것도 할 수 없게 합니다.
 #   restrict,command="/usr/local/bin/lab-windows-power",from="<ASSISTANT_FIP>" ssh-ed25519 AAAA... lab-windows-power
 # (restrict = 포워딩·pty·agent·X11·user-rc 전부 금지. 이 스크립트는 Kolla 사용자(<KOLLA_USER>)의 비밀번호 없는 sudo 에 의존합니다.)
 #
-# 사용 (비서 VM):  ssh winpower status | start | stop
+# 사용 (lab-assistant):  ssh winpower status | start | stop
 set -euo pipefail
 umask 077
 
@@ -19,7 +19,7 @@ case "$ACTION" in
   *) echo "usage: start | stop | status"; exit 2 ;;
 esac
 
-# 관리자 자격증명은 argv(ps 로 보임)가 아니라 권한 600 임시 env-file 로 docker 에 넘긴다.
+# 관리자 credential은 argv(ps 로 보임)가 아니라 권한 600 임시 env-file 로 docker 에 전달한다.
 ENVF=$(mktemp)
 trap 'rm -f "$ENVF"' EXIT
 trap 'exit 130' INT TERM HUP
@@ -53,7 +53,7 @@ case "$ACTION" in
     if [ "$s" = "ACTIVE" ]; then echo "$VM: already ACTIVE"; exit 0; fi
     os server start "$VM"
     wait_for ACTIVE 120
-    echo "ssh win 은 약 30초 뒤부터 됩니다. 자동 로그온 후 Windows-MCP(8000)는 약 40초 뒤 뜨고, Hermes 재연결까지 최대 5분 걸립니다(Discord /reload-mcp 로 바로 재연결)."
+    echo "ssh win 은 약 30초 뒤부터 접속할 수 있습니다. 자동 로그온 후 Windows-MCP(8000)는 약 40초 뒤 시작되고, Hermes 재연결까지 최대 5분 걸립니다(Discord /reload-mcp 로 바로 재연결)."
     ;;
   stop)
     s=$(state)

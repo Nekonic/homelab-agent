@@ -1,0 +1,110 @@
+# Hermes Agent v0.22.x — "reader" profile excerpt (~/.hermes/profiles/reader/config.yaml)
+# Created with:  hermes profile create reader --no-skills --description "..."
+# Self-contained: merge every key below into the reader config. The fallback / auth / approvals /
+# security blocks are copied verbatim from config.ops.example.yaml (approvals.deny is the SAME list,
+# incl. the 5 openstack/clouds.yaml patterns), so both profiles refuse the same command strings.
+# Reader reads untrusted content (web pages, chat) and therefore gets NO shell, files, code
+# execution, browser, or MCP servers; the deny list is a second net in case a toolset slips in.
+
+model:
+  provider: "openai-codex"        # needs its own login: `hermes -p reader auth add openai-codex`
+  default: "gpt-5.6-terra"        # PLACEHOLDER (falls back to OpenRouter if not logged in)
+
+fallback_providers:               # tried in order when the primary fails / is rate-limited
+  - provider: openrouter
+    model: minimax/minimax-m3.1-flash:free   # any ':free' model whose supported_parameters include 'tools'
+fallback:
+  min_switch_reset_seconds: 180   # primary reset < 3 min → wait instead of switching
+
+auth:
+  adopt_external_logins: false    # never borrow ~/.codex or Claude Code logins
+
+approvals:
+  mode: manual                    # always ask on dangerous commands
+  timeout: 300
+  cron_mode: deny
+  single_query_mode: deny
+  unattended_mode: deny
+  mcp_reload_confirm: true
+  destructive_slash_confirm: true
+  deny:                           # fnmatch, case-insensitive, checked before approvals/yolo
+    - '*Format-Volume*'
+    - '*diskpart*'
+    - '*Remove-Item*-Recurse*'
+    - '*Clear-Disk*'
+    - '*Initialize-Disk*'
+    - '*Remove-Partition*'
+    - '*Stop-Computer*'
+    - '*Restart-Computer*'
+    - '*bcdedit*'
+    - '*vssadmin*delete*'
+    - '*cipher*/w*'
+    - '*mkfs*'
+    - 'dd if=* of=/dev/*'
+    - '*shutdown*'
+    - '*poweroff*'
+    - '*reboot*'
+    - 'rm -rf ~*'
+    - 'rm -rf /*'
+    - 'sudo rm *'
+    - '*chmod -R 777*'
+    - '*curl*|*sh*'
+    - '*wget*|*sh*'
+    - '*curl*|*python*'
+    - '*irm*|*iex*'
+    - '*iwr*|*iex*'
+    - '*Invoke-WebRequest*|*Invoke-Expression*'
+    - '*Invoke-RestMethod*|*Invoke-Expression*'
+    - '*ssh*rm -rf*'
+    - '*ssh*-R *'
+    - '*ssh*-D *'
+    - '*ssh-keygen*'
+    - '*authorized_keys*'
+    - '*/.hermes/.env*'
+    - '*/.hermes/profiles/*/.env*'
+    - '*lab-secrets*'
+    - '*/.ssh/id_*'
+    - 'git push --force*'
+    - '*openstack*delete*'
+    - '*openstack *'                # raw openstack CLI: bots use oslab / osadmin only (docs/07)
+    - '*openstack'
+    - '*/.venvs/openstack/*'
+    - '*.config/openstack*'         # credentials (clouds.yaml / app credential secrets)
+    - '*clouds.yaml*'
+
+security:
+  allow_private_urls: false       # SSRF guard stays ON (MCP servers are not affected by it)
+  allow_lazy_installs: false      # no package installs triggered from chat
+
+terminal:
+  cwd: "/home/ubuntu/hermes-work/reader"
+
+platform_toolsets:
+  cli:     [web, vision, todo, memory, session_search, clarify, no_mcp]
+  discord: [web, vision, todo, memory, session_search, clarify, no_mcp]   # no_mcp = no MCP servers
+
+agent:
+  bot_mode_protocol: false
+  disabled_toolsets:              # applied after platform_toolsets → always removed
+    - terminal
+    - code_execution
+    - browser
+    - file
+    - computer_use
+    - delegation
+    - cronjob
+    - skills
+    - image_gen
+    - video_gen
+    - discord_admin
+    - kanban
+    - connections
+
+discord:
+  require_mention: true
+  allow_bots: none                # ignore other bots (incl. the ops bot)
+  history_backfill: false
+
+unauthorized_dm_behavior: ignore
+
+mcp_servers: {}

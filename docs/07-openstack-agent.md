@@ -322,6 +322,54 @@ install -D -m 644 SKILL.md ~/.claude/skills/openstack-lab/SKILL.md          # Cl
 
 **GNS3**: `GET /v3/computes/local/network/interfaces` 응답에 `ens8`(10.20.30.5)가 나옵니다. `GET /v3/version` → 3.1.0a6.
 
+## 전체 admin 권한 주기 (이 구성의 최종 선택)
+
+위의 lab-agent 구성은 "봇은 자기 프로젝트에서만, 삭제 불가"인 최소 권한입니다. 실제 운영에서는 봇이 기존 VM 관리와 정리까지 해야 해서, **admin 권한도 함께** 줬습니다. lab-agent·`oslab`은 그대로 두고, admin 경로를 하나 더 둡니다.
+
+**판단 근거**
+- Claude Code는 auto 모드로 씁니다. 읽기·조회 명령은 묻지 않고, 위험해 보이는 것만 묻습니다. 모든 명령에 Allow를 누르는 방식은 실사용이 불가능합니다.
+- 대신 되돌릴 수 없는 사고를 줄이는 장치를 둡니다.
+
+| 장치 | 내용 |
+|---|---|
+| admin **application credential** | 사용자 비밀번호 대신 폐기 가능한 키. `lab-admin-bot`, 역할 admin, 만료 1년 |
+| `osadmin` 래퍼 | `openstack --os-cloud lab-admin` 에 인자를 그대로 넘기고 **감사 로그** `~/.local/state/osadmin/audit.log` 를 남김 (시간, 호출자, 인자, 종료 코드) |
+| 핵심 VM Nova **lock** | `lab-gns3`, `lab-assistant`, `lab-windows`. admin은 풀 수 있으므로 실수 방지용 한 겹 |
+| 규칙 (SOUL.md / CLAUDE.md / 스킬) | 핵심 리소스(위 VM, provider·lab-net·lab-bridge·lab-router, sg-*, Keystone, 기본 이미지)는 바꾸거나 지우기 전에 사용자에게 묻기. `lab-` 실습 리소스는 묻지 않고 정리 가능 |
+| `openstack` 직접 호출 차단 | Hermes `approvals.deny` 의 `*openstack *` 패턴, Claude Code `Bash(openstack *)` deny → 반드시 로그가 남는 `osadmin` 경유 |
+
+**절차**
+
+1. admin 키를 만듭니다. Kolla 호스트에서 admin으로 실행합니다. 출력 JSON의 키 이름이 `ID`·`Secret`처럼 대문자일 수 있으니 소문자로 바꿔 읽습니다.
+
+   ```bash
+   openstack application credential create lab-admin-bot --role admin --expiration 2027-10-21T00:00:00 -f json > /tmp/cred.json
+   ```
+
+2. 비서 VM `~/.config/openstack/clouds.yaml`(600)에 `lab-admin` 클라우드를 추가합니다. 형식은 `lab-agent`와 같고 `auth_type: v3applicationcredential` 입니다. 임시 파일은 `shred -u`로 지웁니다.
+3. 래퍼 [scripts/openstack/osadmin](../scripts/openstack/osadmin) → `~/.local/bin/osadmin` (755)
+4. 스킬 [scripts/openstack/openstack-admin/SKILL.md](../scripts/openstack/openstack-admin/SKILL.md) → Hermes `~/.hermes/skills/devops/openstack-admin/`, Claude Code `~/.claude/skills/openstack-admin/`. reader 프로필에는 넣지 않습니다.
+5. 핵심 VM을 잠급니다.
+
+   ```bash
+   osadmin server lock --reason "core homelab VM - ask user before unlock/delete" lab-gns3
+   ```
+
+   `lab-assistant`, `lab-windows` 도 같은 명령으로 잠급니다.
+6. 규칙 파일을 갱신하고 Hermes 게이트웨이를 재시작합니다: [scripts/hermes/SOUL.ops.rules.example.md](../scripts/hermes/SOUL.ops.rules.example.md), [scripts/claude-code/CLAUDE.md.example](../scripts/claude-code/CLAUDE.md.example)
+
+**검증 (2026-10-21)**
+- `osadmin server list --all-projects` → 세 VM 모두 보이고, 감사 로그에 기록이 남습니다.
+- 세 VM 모두 `locked=True` 입니다.
+- 잠긴 상태에서도 `ssh winpower start/stop` 은 정상입니다. 전원 명령은 admin 권한으로 실행되기 때문입니다.
+- lab-agent 키로는 핵심 VM이 보이지 않습니다(`No Server found`).
+
+**폐기**: 키가 유출됐거나 봇을 믿기 어려워지면 아래 한 줄로 끊습니다. lab-agent 경로는 계속 동작합니다.
+
+```bash
+openstack application credential delete lab-admin-bot
+```
+
 ## 남은 위험 (알고 쓰기)
 
 - **외부망 직접 연결 → 해결함 (provider 공유 해제)**

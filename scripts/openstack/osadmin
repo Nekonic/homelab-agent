@@ -1,0 +1,16 @@
+#!/bin/bash
+# osadmin — OpenStack admin CLI for the homelab ops bots, with an audit log.
+# Passes every argument to `openstack --os-cloud lab-admin` unchanged and records the call.
+# Audit log: ~/.local/state/osadmin/audit.log  (time, caller, cwd, argv)
+set -u
+OS_BIN="$HOME/.venvs/openstack/bin/openstack"
+LOG_DIR="$HOME/.local/state/osadmin"
+mkdir -p "$LOG_DIR" && chmod 700 "$LOG_DIR"
+caller=$(ps -o comm= -p "$PPID" 2>/dev/null | tr -d ' ')
+printf '%s\tcaller=%s\tcwd=%s\targv=%q' "$(date -Is)" "${caller:-?}" "$PWD" "osadmin" >> "$LOG_DIR/audit.log"
+for a in "$@"; do printf ' %q' "$a" >> "$LOG_DIR/audit.log"; done
+printf '\n' >> "$LOG_DIR/audit.log"
+"$OS_BIN" --os-cloud lab-admin "$@"
+rc=$?
+printf '%s\texit=%s\n' "$(date -Is)" "$rc" >> "$LOG_DIR/audit.log"
+exit $rc

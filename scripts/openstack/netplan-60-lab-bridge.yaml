@@ -1,0 +1,15 @@
+# /etc/netplan/60-lab-bridge.yaml on lab-gns3 (2nd NIC on the lab-bridge network)
+# - static IP = the Neutron port's fixed IP, no gateway / no routes (default route stays on ens3)
+# - MTU 1450 = Neutron VXLAN network MTU
+network:
+  version: 2
+  ethernets:
+    ens8:
+      match:
+        macaddress: "<BRIDGE_PORT_MAC>"   # <- MAC of the lab-gns3-bridge port (openstack port show lab-gns3-bridge)
+      set-name: "ens8"
+      dhcp4: false
+      dhcp6: false
+      link-local: []
+      addresses: [10.20.30.5/24]
+      mtu: 1450

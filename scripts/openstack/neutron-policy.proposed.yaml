@@ -1,0 +1,11 @@
+# OPTIONAL ALTERNATIVE (not applied) - /etc/kolla/config/neutron/policy.yaml
+# Status: the external network "provider" is now UNSHARED (router:external only, `--no-share`),
+#      which already stops lab-agent from putting a port / VM directly on the user's LAN
+#      (docs/07 "남은 위험"). Use this file only if "provider" ever has to be shared again:
+#      with shared=True a member (incl. lab-agent) could create such a port, because Nova's
+#      network:attach_external_network check is skipped for shared external networks.
+# Effect: tokens with role lab-agent cannot create ports on the provider network.
+#         Router gateway / floating IP ports are created internally by Neutron and are not affected.
+# Default rule taken from: docker exec neutron_server oslopolicy-sample-generator --namespace neutron
+# Apply: kolla-ansible reconfigure -i <inventory> --tags neutron   (restarts neutron containers)
+"create_port": "((rule:admin_only) or (role:member and project_id:%(project_id)s) or rule:service_api) and not (role:lab-agent and '<PROVIDER_NET_ID>':%(network_id)s)"

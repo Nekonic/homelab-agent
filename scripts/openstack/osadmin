@@ -1,0 +1,67 @@
+#!/bin/bash
+# osadmin — OpenStack admin CLI for the homelab ops bots, with an audit log.
+# Passes every argument to `openstack --os-cloud lab-admin` unchanged and records the call.
+# Audit log: ~/.local/state/osadmin/audit.log  (600; time, caller, cwd, argv, exit code)
+# Secret-bearing values are logged as *** (the real command still gets them):
+#   - the value of any option whose name contains pass / secret / token (incl. --opt=value),
+#   - the value of any option whose name (after --, before =) is a prefix, of length >= 1, of a
+#     sensitive option name (SECRET_OPTS below). argparse accepts unambiguous abbreviations, so
+#     --p, --or, --se, --os-to ... must count too. This also hides some harmless short options
+#     (--o, --s, --os-c ...): over-redaction is fine, under-redaction is not,
+#   - every positional after `credential create` / `credential set` (the credential blob).
+# This is an audit trail and a guardrail, not a security boundary (see docs/07 "알려진 한계").
+set -u
+OS_BIN="$HOME/.venvs/openstack/bin/openstack"
+LOG_DIR="$HOME/.local/state/osadmin"
+LOG="$LOG_DIR/audit.log"
+mkdir -p "$LOG_DIR" && chmod 700 "$LOG_DIR"
+[ -e "$LOG" ] || : > "$LOG"
+chmod 600 "$LOG"
+caller=$(ps -o comm= -p "$PPID" 2>/dev/null | tr -d ' ')
+
+# option tokens (--name or --name=value) whose value must never reach the log.
+SECRET_OPTS=(password original-password new-password secret admin-pass
+             os-password os-token os-access-token os-client-secret os-passcode
+             os-application-credential-secret)
+is_secret_opt() {
+  local n=${1%%=*}
+  n=${n,,}
+  [[ "$n" == --?* ]] || return 1
+  n=${n#--}
+  case "$n" in
+    *-prompt) return 1 ;;                 # boolean flags such as --password-prompt take no value
+    *pass*|*secret*|*token*) return 0 ;;
+  esac
+  local o
+  for o in "${SECRET_OPTS[@]}"; do
+    [[ "$o" == "$n"* ]] && return 0       # n is a prefix (>= 1 char) of a sensitive name
+  done
+  return 1
+}
+
+line=$(printf '%s\tcaller=%q\tcwd=%q\targv=%q' "$(date -Is)" "${caller:-?}" "$PWD" "osadmin")
+redact_next=0 cred_mode=0 p1="" p2=""
+for a in "$@"; do
+  if [ "$redact_next" = 1 ]; then
+    line+=" ***"
+    redact_next=0
+  elif [ "$cred_mode" = 1 ] && [[ "$a" != -* ]]; then
+    line+=" ***"                                   # credential blob / option values
+  elif [[ "$a" == --*=* ]] && { is_secret_opt "$a" || [ "$cred_mode" = 1 ]; }; then
+    line+=" $(printf '%q' "${a%%=*}")=***"
+  else
+    is_secret_opt "$a" && redact_next=1
+    line+=" $(printf '%q' "$a")"
+  fi
+  # `credential create|set` (not `application credential ...`): redact what follows
+  if [ "$p1" = credential ] && [ "$p2" != application ] && { [ "$a" = create ] || [ "$a" = set ]; }; then
+    cred_mode=1
+  fi
+  p2=$p1 p1=$a
+done
+printf '%s\n' "$line" >> "$LOG"
+
+"$OS_BIN" --os-cloud lab-admin "$@"
+rc=$?
+printf '%s\n' "$(printf '%s\texit=%s' "$(date -Is)" "$rc")" >> "$LOG"
+exit $rc

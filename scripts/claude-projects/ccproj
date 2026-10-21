@@ -1,0 +1,69 @@
+#!/bin/bash
+# ccproj — run Claude Code (subscription login, unmodified `claude` binary) per project folder.
+# Each project lives in ~/projects/<name>; `claude -c` continues that folder's last conversation,
+# so every project keeps its own Claude memory.
+#
+#   ccproj list
+#   ccproj new <name>                 # create ~/projects/<name> (git init)
+#   ccproj run <name> "<task>"        # run and wait (prints Claude's final answer)
+#   ccproj bg  <name> "<task>"        # run in background; check with `ccproj log <name>`
+#   ccproj log <name> [lines]         # tail the project's run log
+#   ccproj status <name>              # running or idle
+#   ccproj reset <name>               # next run starts a fresh conversation (old history archived)
+set -u
+ROOT="$HOME/projects"
+STATE="$HOME/.local/state/ccproj"
+CLAUDE="$HOME/.local/bin/claude"
+TIMEOUT="${CCPROJ_TIMEOUT:-1800}"     # seconds per run
+MAX_TURNS="${CCPROJ_MAX_TURNS:-60}"
+mkdir -p "$ROOT" "$STATE"; chmod 700 "$STATE"
+
+die() { echo "ccproj: $*" >&2; exit 2; }
+valid() { [[ "$1" =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]] || die "project name must match [a-z0-9-] (max 40)"; }
+need()  { [ -d "$ROOT/$1" ] || die "no such project: $1 (ccproj new $1)"; }
+
+run_claude() {  # <name> <task>
+  local name=$1 task=$2 dir="$ROOT/$1" log="$STATE/$1.log" cont=()
+  # continue the folder's last conversation if there is one
+  ls "$HOME/.claude/projects/$(echo "$dir" | sed 's#[^A-Za-z0-9]#-#g')"/*.jsonl >/dev/null 2>&1 && cont=(-c)
+  printf '\n===== %s  task: %s\n' "$(date -Is)" "$task" >> "$log"
+  cd "$dir" || die "cd failed"
+  # Discord plugin off for these runs: the always-on channel session owns that bot token.
+  # All options first, then `--`, then the task: a task starting with "-" can't become an option.
+  # 9>&- : the lock fd is not inherited by claude (or anything it leaves running).
+  timeout -k 30 "$TIMEOUT" "$CLAUDE" "${cont[@]}" -p --max-turns "$MAX_TURNS" --output-format text \
+    --settings '{"enabledPlugins":{"discord@claude-plugins-official":false}}' \
+    --append-system-prompt "You are being run non-interactively by the Hermes ops agent for project '$name' (folder $dir). Reply in plain text; there is no Discord in this run. End with a short summary of what you changed." \
+    -- "$task" < /dev/null 9>&- 2>&1 | tee -a "$log" 9>&-
+  local rc=${PIPESTATUS[0]}
+  printf '===== %s  exit=%s\n' "$(date -Is)" "$rc" >> "$log"
+  [ "$rc" = 124 ] && echo "ccproj: timed out after ${TIMEOUT}s (see: ccproj log $name)"
+  return "$rc"
+}
+
+cmd=${1:-}; shift || true
+case "$cmd" in
+  list)   ls -1 "$ROOT" ;;
+  new)    valid "${1:-}"; [ -e "$ROOT/$1" ] && die "exists: $1"
+          mkdir -p "$ROOT/$1" && git -C "$ROOT/$1" init -q && echo "created $ROOT/$1" ;;
+  run)    valid "${1:-}"; need "$1"; [ -n "${2:-}" ] || die "task text required"
+          exec 9>"$STATE/$1.lock"; flock -n 9 || die "$1 is already running"
+          run_claude "$1" "$2" ;;
+  bg)     valid "${1:-}"; need "$1"; [ -n "${2:-}" ] || die "task text required"
+          # take the lock here; the background child inherits fd 9 (and the lock) via _bgrun
+          exec 9>"$STATE/$1.lock"; flock -n 9 || die "$1 is already running"
+          nohup "$0" _bgrun "$1" "$2" >/dev/null 2>&1 &
+          echo "started in background: $1 (pid $!) — check with: ccproj log $1" ;;
+  _bgrun) valid "${1:-}"; need "$1"; [ -n "${2:-}" ] || die "task text required"
+          flock -n 9 2>/dev/null || die "_bgrun is internal (lock fd not inherited)"
+          run_claude "$1" "$2" ;;
+  log)    valid "${1:-}"; tail -n "${2:-40}" "$STATE/$1.log" 2>/dev/null || echo "(no log yet)" ;;
+  status) valid "${1:-}"; exec 9>"$STATE/$1.lock"; flock -n 9 && echo "$1: idle" || echo "$1: running" ;;
+  reset)  valid "${1:-}"; need "$1"
+          exec 9>"$STATE/$1.lock"; flock -n 9 || die "$1 is running"
+          src="$HOME/.claude/projects/$(echo "$ROOT/$1" | sed 's#[^A-Za-z0-9]#-#g')"
+          compgen -G "$src/*.jsonl" >/dev/null || { echo "no history to reset"; exit 0; }
+          dst="$STATE/archive/$1-$(date +%Y%m%d%H%M%S)"; mkdir -p "$dst"
+          mv "$src"/*.jsonl "$dst"/ && echo "archived history to $dst; next run starts fresh" ;;
+  *)      sed -n '2,12p' "$0"; exit 2 ;;   # the usage comment block at the top
+esac

@@ -1,6 +1,6 @@
 # 홈랩 운영 규칙 (Claude Code, Discord 채널)
 
-이 세션은 Discord로 사용자와 대화한다. 답변은 Discord의 reply 도구로 보낸다.
+Discord 채널 세션(--channels)일 때는 Discord의 reply 도구로 답한다. `claude -p` 로 실행된 경우(Hermes가 ccproj로 부른 프로젝트 작업)에는 일반 텍스트로 답한다.
 
 ## 환경
 - 윈도우 VM은 평소 꺼져 있다. 윈도우 작업 전에 `ssh winpower status`로 확인하고, SHUTOFF면 `ssh winpower start`로 켠다. `ssh win`은 켠 뒤 약 30초, Windows-MCP 도구는 최대 5분 뒤부터 쓸 수 있다.

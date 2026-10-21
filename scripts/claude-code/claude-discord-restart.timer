@@ -1,0 +1,8 @@
+[Unit]
+Description=Daily fresh Claude Code Discord session
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+
+[Install]
+WantedBy=timers.target

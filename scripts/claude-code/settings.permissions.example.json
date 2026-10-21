@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(~/.hermes/**)",
+      "Edit(~/.ssh/**)",
+      "Read(~/.hermes/**)",
+      "Read(~/.ssh/**)",
+      "mcp__gns3__drawing_delete",
+      "mcp__gns3__image_delete",
+      "mcp__gns3__image_prune",
+      "mcp__gns3__link_delete",
+      "mcp__gns3__node_delete",
+      "mcp__gns3__node_file_delete",
+      "mcp__gns3__node_file_write",
+      "mcp__gns3__project_delete",
+      "mcp__gns3__snapshot_delete",
+      "mcp__gns3__snapshot_restore",
+      "mcp__gns3__template_delete",
+      "Bash(openstack *)",
+      "Bash(*/openstack *)",
+      "Bash(*/.venvs/openstack/*)",
+      "Read(~/.config/openstack/**)",
+      "Edit(~/.config/openstack/**)",
+      "Edit(~/.local/bin/oslab)",
+      "Edit(~/.local/bin/osadmin)",
+      "Edit(~/.local/bin/ccproj)",
+      "Edit(~/.local/bin/homelab-report)",
+      "Edit(~/.local/state/osadmin/**)",
+      "Bash(*clouds.yaml*)"
+    ],
+    "defaultMode": "auto"
+  }
+}

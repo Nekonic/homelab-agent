@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily homelab check by Claude Code, posted to Discord #claude forum
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/bin:%h/.bun/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOMELAB_REPORT_FORUM_ID=<CLAUDE_FORUM_CHANNEL_ID>
+ExecStart=%h/.local/bin/homelab-report
+TimeoutStartSec=1200

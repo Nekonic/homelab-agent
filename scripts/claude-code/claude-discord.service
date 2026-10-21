@@ -1,0 +1,16 @@
+[Unit]
+Description=Claude Code with Discord channel (tmux -L claude-discord, session: claude-discord)
+
+[Service]
+Type=forking
+Environment=PATH=%h/.local/bin:%h/.bun/bin:/usr/local/bin:/usr/bin:/bin
+WorkingDirectory=%h/claude-work
+# Dedicated tmux socket: this service owns its own tmux server, separate from interactive tmux.
+# Attach: tmux -L claude-discord attach -t claude-discord
+ExecStart=/usr/bin/tmux -L claude-discord new-session -d -s claude-discord -c %h/claude-work "claude --channels plugin:discord@claude-plugins-official"
+ExecStop=/usr/bin/tmux -L claude-discord kill-session -t claude-discord
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

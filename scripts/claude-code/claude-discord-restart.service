@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart the Claude Code Discord session (fresh context every day)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl --user restart claude-discord.service

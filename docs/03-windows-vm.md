@@ -83,9 +83,19 @@ os console log show lab-windows | tail
 | 5900 (VNC) | `sg-assistant`만 | VNC는 암호화가 약함 → LAN에도 열지 않음 |
 | 3389 (RDP) | LAN | 사람이 직접 화면 사용 |
 
-### 4. (선택) C: 드라이브 확장
+### 4. 램·디스크 늘리기 (리사이즈)와 C: 드라이브 확장
 
-80GB flavor인데 C: 여유가 **약 44GB**뿐이었습니다. 복구(Recovery) 파티션이 C: **뒤에** 있어서 Cloudbase-Init의 ExtendVolumes 플러그인이 C:를 늘리지 못하기 때문입니다. 필요하면 관리자 PowerShell에서:
+**리사이즈.** 단일 노드에서는 nova에 `allow_resize_to_same_host = true`가 있어야 합니다. 이 구성에는 이미 있었습니다(`grep allow_resize /etc/kolla/nova-api/nova.conf`). VM이 꺼진 상태에서 진행합니다.
+
+```bash
+openstack flavor create lab.windows16 --vcpus 4 --ram 16384 --disk 150
+openstack server resize --flavor lab.windows16 --wait lab-windows
+openstack server resize confirm lab-windows      # VERIFY_RESIZE → 확정
+```
+
+2026-10-21: 8GB/80GB → 16GB/150GB. 리사이즈는 같은 호스트 안에서 디스크를 복사하므로 몇 분 걸립니다. 꺼진 VM도 플레이버만큼 메모리를 예약(placement)하므로 호스트 여유를 먼저 확인하세요(`openstack hypervisor stats show`).
+
+**C: 확장.** 디스크를 늘려도 C:는 자동으로 커지지 않습니다. 80GB일 때도 C: 여유가 **약 44GB**뿐이었습니다. 복구(Recovery) 파티션이 C: **뒤에** 있어서 Cloudbase-Init의 ExtendVolumes 플러그인이 C:를 늘리지 못하기 때문입니다. 필요하면 관리자 PowerShell에서:
 
 ```powershell
 Get-Partition -DiskNumber 0                     # Recovery 파티션 번호 확인
@@ -97,6 +107,12 @@ reagentc /enable
 ```
 
 > 파티션 삭제는 되돌릴 수 없습니다. 스냅숏(`openstack server image create`)을 먼저 떠두세요.
+
+PowerShell만으로도 됩니다. `Remove-Partition -DiskNumber 0 -PartitionNumber <N> -Confirm:$false`를 쓰면 diskpart 없이 지울 수 있습니다.
+
+결과 (2026-10-21): C: 149.8GB(여유 122.5GB). WinRE는 C: 안의 이미지로 다시 **Enabled**입니다.
+
+SSH로 실행할 때 출력이 한글(CP949)로 나와 깨지면, 스크립트 첫 줄에 `[Console]::OutputEncoding = [Text.Encoding]::UTF8`을 넣으세요.
 
 ### 5. GNS3 GUI 3.1.0a6 설치
 

@@ -60,6 +60,8 @@ ASCII 버전:
 - Neutron provider(flat) 네트워크가 홈 LAN에 브리지되어 있을 것 (`physnet1` ↔ `br-ex`)
 - Nova `enable_nova_swtpm` 활성화 (Windows 11 vTPM용)
 - 공유기에서 WireGuard 서버 사용 가능 (외부 접속용, 선택)
+  - **밖에서 쓰는 와이파이가 집과 같은 대역(예: 192.168.0.0/24)이면** 맥이 집 서버 주소를 VPN이 아니라 현재 랜으로 보냅니다. WireGuard 터널의 `AllowedIPs`에 서버·VM 주소를 콕 집어 넣으면 해결됩니다. 예: `0.0.0.0/0, 192.168.0.100/32, 192.168.0.200/29`. 더 구체적인 경로(/32, /29)가 직접 연결된 /24보다 우선합니다. "Exclude private IPs"는 끕니다.
+  - 보안그룹에 WireGuard 클라이언트 대역도 허용해야 합니다. [docs/01](docs/01-openstack-reset-and-base.md) 보안 그룹 절 참고.
 
 ## 문서 목차
 

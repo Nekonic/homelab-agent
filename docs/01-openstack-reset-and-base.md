@@ -209,7 +209,17 @@ rule --protocol tcp  --dst-port 3389 --remote-ip $LAN            sg-windows
 rule --protocol icmp                 --remote-ip $LAN            sg-windows
 ```
 
-> WireGuard 클라이언트가 별도 대역(예: `10.6.0.0/24`)을 쓰고 공유기가 NAT하지 않는다면, 그 대역도 `--remote-ip`에 추가해야 합니다.
+> **WireGuard 대역도 허용해야 합니다.** 공유기 WireGuard 클라이언트는 별도 대역(이 구성은 `10.158.157.0/24`)에서 들어오고 공유기가 NAT하지 않습니다. 따라서 LAN만 허용하면 VPN으로는 VM에 닿지 않습니다(Kolla 호스트 자체는 보안그룹이 없어 됩니다). LAN 규칙과 같은 포트에 WG 대역을 추가합니다.
+>
+> ```bash
+> WG=10.158.157.0/24
+> rule --protocol tcp --dst-port 22        --remote-ip $WG sg-assistant
+> rule --protocol tcp --dst-port 22        --remote-ip $WG sg-gns3
+> rule --protocol tcp --dst-port 3080      --remote-ip $WG sg-gns3
+> rule --protocol tcp --dst-port 5000:5100 --remote-ip $WG sg-gns3
+> rule --protocol tcp --dst-port 3389      --remote-ip $WG sg-windows
+> for g in sg-assistant sg-gns3 sg-windows; do rule --protocol icmp --remote-ip $WG $g; done
+> ```
 
 ---
 

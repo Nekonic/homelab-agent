@@ -9,6 +9,7 @@
 #   ccproj bg  <name> "<task>"        # run in background; check with `ccproj log <name>`
 #   ccproj log <name> [lines]         # tail the project's run log
 #   ccproj status <name>              # running or idle
+#   ccproj reset <name>               # next run starts a fresh conversation (old history archived)
 set -u
 ROOT="$HOME/projects"
 STATE="$HOME/.local/state/ccproj"
@@ -51,5 +52,10 @@ case "$cmd" in
           echo "started in background: $1 (pid $!) — check with: ccproj log $1" ;;
   log)    valid "${1:-}"; tail -n "${2:-40}" "$STATE/$1.log" 2>/dev/null || echo "(no log yet)" ;;
   status) valid "${1:-}"; exec 9>"$STATE/$1.lock"; flock -n 9 && echo "$1: idle" || echo "$1: running" ;;
-  *)      sed -n '2,13p' "$0"; exit 2 ;;
+  reset)  valid "${1:-}"; need "$1"
+          exec 9>"$STATE/$1.lock"; flock -n 9 || die "$1 is running"
+          src="$HOME/.claude/projects/$(echo "$ROOT/$1" | sed 's#[/.]#-#g')"
+          dst="$STATE/archive/$1-$(date +%Y%m%d%H%M%S)"; mkdir -p "$dst"
+          mv "$src"/*.jsonl "$dst"/ 2>/dev/null && echo "archived history to $dst; next run starts fresh" || echo "no history to reset" ;;
+  *)      sed -n '2,14p' "$0"; exit 2 ;;
 esac

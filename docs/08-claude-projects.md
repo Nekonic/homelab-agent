@@ -36,6 +36,7 @@ Discord ─@멘션/DM→ Hermes(ops) ─ ccproj run <프로젝트> "<작업>" �
    | `ccproj bg <이름> "<작업>"` | 백그라운드로 실행합니다 |
    | `ccproj log <이름>` | 결과를 봅니다 |
    | `ccproj status <이름>` | running / idle |
+   | `ccproj reset <이름>` | 그 프로젝트의 대화 기록을 `~/.local/state/ccproj/archive/`로 옮김. 다음 실행은 새 대화로 시작 |
 
    - 같은 프로젝트를 동시에 두 번 돌리지 않게 `flock`으로 잠급니다.
    - 실행 기록은 `~/.local/state/ccproj/<이름>.log`에 남습니다.

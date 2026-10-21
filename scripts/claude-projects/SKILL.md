@@ -20,6 +20,7 @@ ccproj run <이름> "<작업 설명>"      # 실행하고 끝날 때까지 기�
 ccproj bg  <이름> "<작업 설명>"      # 오래 걸릴 작업은 백그라운드로
 ccproj log <이름> [줄 수]            # 실행 기록 보기 (bg 결과 확인)
 ccproj status <이름>                 # running / idle
+ccproj reset <이름>                  # 그 프로젝트의 Claude 대화를 새로 시작 (사용자가 원할 때만)
 ```
 
 ## 규칙

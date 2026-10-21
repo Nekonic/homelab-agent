@@ -199,6 +199,47 @@ tmux ls
 
 이 구성은 `#일반` 채널 하나를 이렇게 열었습니다(2026-10-21). 채널 ID는 봇 토큰으로 `GET /api/v10/guilds/<서버ID>/channels`를 호출해 찾았습니다.
 
+### 7. 전용 포럼 채널과 컨텍스트 관리
+
+이 봇은 **홈랩 관리자** 역할입니다. 프로젝트 작업은 Hermes가 `ccproj`로 맡깁니다([08](08-claude-projects.md)). 이 봇은 디스코드 `#claude` **포럼**에서 홈랩 점검, 설정 변경, 문서 작업을 대화로 합니다.
+
+**포럼 채널**
+- 포럼 글 하나가 곧 스레드입니다. 플러그인 규칙상 스레드는 부모 채널 설정을 따르므로, 포럼 채널 ID 하나만 `groups`에 넣으면 됩니다.
+- 전용 채널이라 `requireMention: false`(멘션 없이 대화)로 두고, `allowFrom`은 본인만 넣습니다.
+- 다른 채널(`#일반`)에서는 빼서 Hermes 봇들과 섞이지 않게 합니다.
+
+```json
+"groups": { "<포럼채널ID>": { "requireMention": false, "allowFrom": ["<내 ID>"] } }
+```
+
+**컨텍스트: "대화는 잊힌다고 보고, 오래 남을 건 파일에"**
+
+| 무엇 | 어디에 | 수명 |
+|---|---|---|
+| 지금 대화 | 상시 세션 | 매일 04:30에 새로 시작 (`claude-discord-restart.timer`). 긴 대화가 자동 요약(compact)되며 흐려지는 것을 막음 |
+| 규칙·환경 | `~/.claude/CLAUDE.md`, `~/claude-work/CLAUDE.md` | 영구 |
+| 무엇을 언제 왜 바꿨나 | `~/claude-work/CHANGELOG.md` (바꿀 때마다 한 줄: 날짜, 무엇을, 왜, 되돌리는 법) | 영구 |
+| Claude가 배운 것 | 자동 메모리 `~/.claude/projects/-home-ubuntu-claude-work/memory/MEMORY.md` (기본 켜짐, 앞 200줄/25KB를 매 세션 로드) | 영구 |
+| 매일 점검 | 세션 밖 `homelab-report.timer` (매일 08:03) → `claude -p` 조회 전용 점검 → 포럼에 새 글 | 세션 재시작과 무관 |
+
+**세션 안 예약 작업은 쓰지 않습니다.** `/loop`이나 cron 같은 세션 안 예약 작업은 세션이 재시작되면 다시 걸어야 하고, 반복 작업은 **7일 뒤 자동 만료**됩니다([문서](https://code.claude.com/docs/en/scheduled-tasks)). 그래서 매일 하는 일은 systemd 타이머로 돌립니다.
+
+파일:
+- [scripts/claude-code/claude-work.CLAUDE.md](../scripts/claude-code/claude-work.CLAUDE.md) → `~/claude-work/CLAUDE.md`
+- [scripts/claude-code/homelab-report](../scripts/claude-code/homelab-report) → `~/.local/bin/homelab-report`. 디스코드 플러그인을 끈 `claude -p`로 점검합니다. 결과는 봇 토큰으로 `POST /channels/<포럼>/threads` 해서 새 글로 올립니다. 1900자를 넘으면 나눠 올립니다.
+- [homelab-report.service](../scripts/claude-code/homelab-report.service)와 [.timer](../scripts/claude-code/homelab-report.timer)
+  - service의 `HOMELAB_REPORT_FORUM_ID`에 포럼 채널 ID를 넣습니다.
+  - timer는 `Persistent=true`라서 VM이 꺼져 있다 켜지면 놓친 실행을 한 번 합니다.
+- [claude-discord-restart.service](../scripts/claude-code/claude-discord-restart.service)와 [.timer](../scripts/claude-code/claude-discord-restart.timer)
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now claude-discord-restart.timer homelab-report.timer
+systemctl --user list-timers
+```
+
+검증 (2026-10-21): `systemctl --user start homelab-report.service` → 34초 만에 포럼에 "홈랩 점검 2026-10-21" 글이 올라왔습니다. VM, 하이퍼바이저, 서비스, 윈도우 전원, osadmin 감사 로그, 디스크·메모리 항목이 들어 있고, 아무것도 바꾸지 않았습니다.
+
 ## 검증
 
 - `systemctl --user status claude-discord`가 active
@@ -219,7 +260,7 @@ tmux ls
 |---|---|---|
 | ops | Hermes (GPT) | DM 또는 멘션 |
 | reader | Hermes (GPT) | 멘션 |
-| claude | Claude Code (Claude 구독) | DM 또는 `#일반`에서 멘션 |
+| claude | Claude Code (Claude 구독) | DM 또는 `#claude` 포럼 (멘션 없이) |
 
 ## 출처
 

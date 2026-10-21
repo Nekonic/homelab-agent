@@ -1,0 +1,9 @@
+[Unit]
+Description=Run homelab-report every morning
+
+[Timer]
+OnCalendar=*-*-* 08:03:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

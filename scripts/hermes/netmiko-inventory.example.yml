@@ -1,0 +1,10 @@
+---
+# Netmiko Tools inventory. Intentionally empty: no lab devices exist yet.
+# Add devices later, e.g.
+# r1:
+#   device_type: cisco_ios
+#   host: <DEVICE_MGMT_IP>
+#   username: <user>
+#   password: __encrypt__...   # use netmiko-encrypt + NETMIKO_TOOLS_KEY
+# all_routers:
+#   - r1

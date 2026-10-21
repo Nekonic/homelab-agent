@@ -1,0 +1,12 @@
+# netmiko-mcp server config (lab-assistant, ops profile only)
+inventory_type: "netmiko_tools"
+inventory_file: "~/.config/netmiko-mcp/inventory.yml"
+command_file: "~/.config/netmiko-mcp/commands.yml"
+transport: "stdio"
+allow_pipe: true
+pipe_modifiers: ["include", "exclude", "section", "begin", "count"]
+max_workers: 5
+save_output_dir: "~/.netmiko_mcp_tmp"
+audit_log_enabled: true
+audit_log_destination: "file"
+audit_log_file: "~/.netmiko_mcp_audit.log"

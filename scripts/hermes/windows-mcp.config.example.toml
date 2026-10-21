@@ -1,0 +1,10 @@
+# C:\Users\<user>\.windows-mcp\config.toml on lab-windows (written by windows-mcp-setup.ps1)
+# Contains a secret — keep it only on the Windows VM.
+[server]
+transport = "streamable-http"
+host      = "<WIN_LAB_IP>"
+port      = 8000
+auth_key  = "<WINDOWS_MCP_AUTH_KEY>"
+
+[security]
+ip_allowlist = ["<ASSISTANT_LAB_IP>/32"]

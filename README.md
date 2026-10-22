@@ -116,7 +116,7 @@ REPO=~/homelab-agent        # 새 셸마다 다시 지정 (또는 ~/.bashrc 에 
 | 06 | [docs/06-claude-code.md](docs/06-claude-code.md) | Claude Code + Discord `#claude` 포럼 (Claude 구독), auto 권한 모드 + deny 규칙, systemd+tmux, `~/claude-work` CHANGELOG, 일일 점검 리포트 | 서버 준비 완료 (로그인·봇 토큰·페어링은 수동) |
 | 07 | [docs/07-openstack-agent.md](docs/07-openstack-agent.md) | 봇에 OpenStack 권한 부여: admin 키+감사 로그(`osadmin`)+주요 VM lock, 최소 권한 경로 lab-agent 프로젝트·quota, Nova 정책, application credential access_rules, lab-bridge(GNS3 연결), Kali 이미지, `oslab` 스킬 | 완료 |
 | 08 | [docs/08-claude-projects.md](docs/08-claude-projects.md) | Hermes → Claude Code 프로젝트 위임 (`ccproj`, 프로젝트별 대화 기록) | 완료 |
-| — | [docs/research/2026-10-agent-landscape.md](docs/research/2026-10-agent-landscape.md) | 셀프호스트 AI 에이전트 비교 조사 (2026-10) | 참고 |
+| — | [docs/research/2026-10-agent-landscape.md](docs/research/2026-10-agent-landscape.md) | Self-hosted AI 에이전트 비교 (2026-10) | 참고 |
 
 ### 스크립트 / 설정 예시
 

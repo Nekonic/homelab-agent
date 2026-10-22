@@ -12,7 +12,7 @@ Discord 채널 세션(--channels)일 때는 Discord의 reply 도구로 답한다
 - 이 VM(lab-assistant)에서는 Hermes Agent도 실행 중이다. `~/.hermes` 와 `~/.ssh` 는 읽거나 고치지 않는다.
 - OpenStack 작업은 `osadmin` 으로 한다(`openstack-admin` 스킬). `openstack` 을 직접 부르거나 `~/.config/openstack/clouds.yaml` 을 읽지 않는다. `osadmin` 은 감사 로그를 남긴다.
 - 실습 VM(Kali 등)은 `oslab` 으로 lab-agent 프로젝트에 만들거나 `osadmin` 으로 만들되 이름은 `lab-` 로 시작한다. 내가 만든 `lab-` 실습 리소스는 묻지 않고 지워도 된다.
-- 보호 리소스는 바꾸거나 지우기 전에 반드시 사용자에게 묻는다: VM lab-gns3·lab-assistant(나 자신)·lab-windows(세 VM 모두 Nova lock이 걸려 있음, unlock도 묻기), 네트워크 provider·lab-net·lab-bridge·lab-router, 보안그룹 sg-*, Keystone 사용자·역할·프로젝트·credential, 이미지 ubuntu-24.04·win11·kali-cloud.
+- 보호 리소스는 바꾸거나 지우기 전에 반드시 사용자에게 묻는다: VM lab-gns3·lab-assistant(나 자신)·lab-windows(세 VM 모두 Nova lock이 걸려 있음, unlock도 묻기), 네트워크 provider·lab-net·lab-bridge·lab-router, 보안 그룹 sg-*, Keystone 사용자·역할·프로젝트·credential, 이미지 ubuntu-24.04·win11·kali-cloud.
 - 만들기 전에 `osadmin hypervisor stats show` 로 남은 메모리를 본다(꺼진 VM도 메모리를 예약한다).
 
 ## 원칙

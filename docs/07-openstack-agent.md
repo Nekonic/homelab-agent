@@ -17,7 +17,7 @@
 - lab-agent 경로(`oslab`)로는 삭제할 수 없습니다. 봇이 만든 `lab-` 실습 리소스는 admin 경로(`osadmin`)로 봇이 정리하고, 그 밖의 삭제는 사람이 확인합니다.
 - 이 문서의 값(2026-10-21 구축 기준): Kolla-Ansible 2026.1 (kolla-ansible 22.2.x, Nova 33.0.x), python-openstackclient 10.4.0, Kali 2026.2.
 
-- **외부 통신(egress)은 제한하지 않습니다.** lab-assistant에서 나가는 연결을 허용된 API(Discord, 모델 API 등)로만 좁히는 방식은 적용하지 않았습니다. 봇이 sudo와 OpenStack admin 권한을 쓸 수 있는 상태에서는 lab-assistant 안의 방화벽이나 보안그룹 egress 규칙을 봇이 직접 해제할 수 있어 효과가 적다고 판단했습니다. 제한이 필요해지면 방화벽을 봇이 접근할 수 없는 곳(예: Kolla 호스트의 프록시 + 허용 목록)에 두고, 승인은 봇이 모르는 비밀번호로 하는 방식을 권합니다.
+- **외부 통신(egress)은 제한하지 않습니다.** lab-assistant에서 나가는 연결을 허용된 API(Discord, 모델 API 등)로만 좁히는 방식은 적용하지 않았습니다. 봇이 sudo와 OpenStack admin 권한을 쓸 수 있는 상태에서는 lab-assistant 안의 방화벽이나 보안 그룹 egress 규칙을 봇이 직접 해제할 수 있어 효과가 적다고 판단했습니다. 제한이 필요해지면 방화벽을 봇이 접근할 수 없는 곳(예: Kolla 호스트의 프록시 + 허용 목록)에 두고, 승인은 봇이 모르는 비밀번호로 하는 방식을 권합니다.
 
 ## 사전 요구사항
 

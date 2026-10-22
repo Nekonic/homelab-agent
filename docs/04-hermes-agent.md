@@ -28,7 +28,7 @@ MCP 서버(GNS3, Windows-MCP, mcp-vnc, netmiko) 설치·검증은 [05 문서](05
 | `default` (= **ops**) | `~/.hermes/` | 운영 봇. multiplex 게이트웨이의 호스트 | 모델 키, ops 봇 토큰, `GNS3_API_KEY`, `WINDOWS_MCP_AUTH_KEY`, `VNC_PASSWORD` |
 | `reader` | `~/.hermes/profiles/reader/` | 읽기 전용 대화/조사 봇 | 모델 키, reader 봇 토큰만 |
 
-- v0.22는 게이트웨이 하나가 모든 프로필을 서빙(multiplex, 기본값)합니다. 프로필마다 `.env`, MCP 연결, 허용 사용자, 승인 기록이 분리되고, MCP 자식 프로세스는 자기 프로필의 secret만 받습니다.
+- v0.22는 게이트웨이 하나가 모든 프로필을 처리(multiplex, 기본값)합니다. 프로필마다 `.env`, MCP 연결, 허용 사용자, 승인 기록이 분리되고, MCP 자식 프로세스는 자기 프로필의 secret만 받습니다.
 - 봇 토큰은 프로필마다 **서로 다른 Discord 봇**이어야 합니다(같은 토큰이면 두 번째가 `duplicate_credential`로 정지).
 - **주의: 프로필은 샌드박스가 아닙니다.** 같은 리눅스 사용자로 실행되므로 reader는 도구를 아예 주지 않는 방식으로 격리합니다(`platform_toolsets` + `agent.disabled_toolsets` + `no_mcp`).
 
@@ -189,7 +189,7 @@ systemctl --user is-enabled hermes-gateway.service   # enabled
 systemctl --user is-active hermes-gateway.service    # inactive (토큰 넣기 전까지 정상)
 ```
 
-기본 프로필의 게이트웨이 하나가 reader까지 서빙합니다(`hermes -p reader gateway install`은 하지 않음). 재부팅되면 토큰이 비어 있어도 서비스는 시작되지만 연결할 플랫폼이 없어 아무 일도 하지 않습니다.
+기본 프로필의 게이트웨이 하나가 reader까지 처리합니다(`hermes -p reader gateway install`은 하지 않음). 재부팅되면 토큰이 비어 있어도 서비스는 시작되지만 연결할 플랫폼이 없어 아무 일도 하지 않습니다.
 
 ## 수동 작업
 
@@ -247,7 +247,7 @@ systemctl --user is-active hermes-gateway.service    # inactive (토큰 넣기 �
 
 #### 2) 설치 (Installation) 메뉴
 
-1. **설치 콘텍스트 (Installation Contexts)**
+1. **설치 환경 (Installation Contexts)**
    - `길드 설치 (Guild Install)`만 체크합니다.
    - `사용자 설치 (User Install)`는 해제합니다. 새 앱은 기본으로 둘 다 켜져 있습니다.
 2. **설치 링크 (Install Link)**: `Discord 제공 링크 (Discord Provided Link)`를 선택합니다.
@@ -318,7 +318,7 @@ Hermes는 서버 채널에서 `@멘션`을 받으면 기본으로 스레드를 �
 
 이렇게 하면 reader는 다른 채널을 아예 읽지 못합니다.
 
-출처: [Discord: Building your first Discord Bot](https://docs.discord.com/developers/quick-start/getting-started) · [Discord: Developing a User-Installable App (설치 콘텍스트/설치 링크)](https://docs.discord.com/developers/tutorials/developing-a-user-installable-app) · [Hermes: Discord](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/discord)
+참고: [Discord: Building your first Discord Bot](https://docs.discord.com/developers/quick-start/getting-started) · [Discord: Developing a User-Installable App (설치 환경/설치 링크)](https://docs.discord.com/developers/tutorials/developing-a-user-installable-app) · [Hermes: Discord](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/discord)
 
 ## 검증
 

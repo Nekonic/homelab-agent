@@ -133,9 +133,8 @@ REPO=~/homelab-agent        # 새 셸마다 다시 지정 (또는 ~/.bashrc 에 
 | [scripts/hermes/](scripts/hermes/) | Hermes 설정(`config.ops/reader.example.yaml`)·`.env` 예시, netmiko 설정, Windows-MCP 설치 스크립트 |
 | [scripts/hermes/SOUL.ops.rules.example.md](scripts/hermes/SOUL.ops.rules.example.md) | ops 봇 운영 규칙 (`~/.hermes/SOUL.md` 끝에 붙임) |
 | [scripts/hermes/mcp_list.py](scripts/hermes/mcp_list.py) | MCP 서버 도구 목록을 독립 클라이언트로 확인 (SSE/HTTP/stdio) |
-| [scripts/hermes/windows-mcp-setup.ps1](scripts/hermes/windows-mcp-setup.ps1) / [windows-mcp.config.example.toml](scripts/hermes/windows-mcp.config.example.toml) | Windows-MCP 설정·예약 작업·방화벽 / 만들어지는 `config.toml` 형식 |
+| [scripts/hermes/windows-mcp-setup.ps1](scripts/hermes/windows-mcp-setup.ps1) | Windows-MCP 설정·예약 작업·방화벽 |
 | [scripts/openstack/](scripts/openstack/) | Nova 정책, access_rules, `oslab` wrapper, OpenStack 스킬 SKILL.md, netplan 예시 |
-| [scripts/openstack/neutron-policy.proposed.yaml](scripts/openstack/neutron-policy.proposed.yaml) | (선택, 미적용) provider를 다시 공유해야 할 때 쓰는 Neutron 정책 대안 |
 | [scripts/openstack/osadmin](scripts/openstack/osadmin) | 봇용 OpenStack admin wrapper (감사 로그, 민감한 옵션 값 masking). 스킬: [scripts/openstack/openstack-admin/SKILL.md](scripts/openstack/openstack-admin/SKILL.md) |
 | [scripts/claude-projects/](scripts/claude-projects/) | `ccproj` wrapper, Hermes `claude-projects` 스킬 |
 | [scripts/claude-code/](scripts/claude-code/) | Claude Code systemd 유닛, `~/.claude/CLAUDE.md` 규칙([CLAUDE.md.example](scripts/claude-code/CLAUDE.md.example)), 권한 예시(auto + deny) |

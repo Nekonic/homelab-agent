@@ -189,7 +189,7 @@ grep -m1 '^WINDOWS_MCP_AUTH_KEY=' ~/.hermes/.env | cut -d= -f2- | ssh win \
 
 스크립트가 하는 일:
 
-1. `~/.windows-mcp/config.toml`: `transport=streamable-http`, `host=<WIN_LAB_IP>`(lab IP에만 바인드), `port=8000`, `auth_key`, `ip_allowlist=["<ASSISTANT_LAB_IP>/32"]`. 예시: [windows-mcp.config.example.toml](../scripts/hermes/windows-mcp.config.example.toml). ACL은 사용자·SYSTEM·Administrators만(SID로 지정)
+1. `~/.windows-mcp/config.toml`: `transport=streamable-http`, `host=<WIN_LAB_IP>`(lab IP에만 바인드), `port=8000`, `auth_key`, `ip_allowlist=["<ASSISTANT_LAB_IP>/32"]`. ACL은 사용자·SYSTEM·Administrators만(SID로 지정)
 2. 옛 `start-server.cmd`를 지운 뒤 `windows-mcp install --transport streamable-http --host <WIN_LAB_IP> --port 8000 --force`. 출력은 변수에 모두 받은 뒤 앞 12줄만 표시하고, 설치가 `start-server.cmd`를 새로 만들지 않았으면 오류로 중단합니다. `icacls`가 실패해도 중단합니다
 3. `start-server.cmd`에 `PYTHONUTF8=1`(한국어 cp949 콘솔 오류 방지), `ANONYMIZED_TELEMETRY=false` 추가
 4. 방화벽 규칙 `windows-mcp-8000`: TCP 8000, 원격 주소 lab-assistant만

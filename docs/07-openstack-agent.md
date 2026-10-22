@@ -515,7 +515,7 @@ os application credential delete lab-admin-bot
     - `server create --network provider` → `ERROR: Failed to allocate the network(s)`
     - `network list --external` → provider가 보임 (라우터 게이트웨이용)
     - 기존 Floating IP와 VM 접속은 정상입니다.
-  - 대안: Neutron 정책으로 `role:lab-agent`의 provider 포트 생성을 막는 방법도 있습니다([`scripts/openstack/neutron-policy.proposed.yaml`](../scripts/openstack/neutron-policy.proposed.yaml), `reconfigure --tags neutron` 필요). 공유하지 않는 것만으로 충분해 적용하지 않았습니다.
+  - 대안: Neutron 정책으로 `role:lab-agent`의 provider 포트 생성을 막는 방법도 있습니다(`create_port` 규칙에 `not role:lab-agent` 조건 추가, `reconfigure --tags neutron` 필요). 공유하지 않는 것만으로 충분해 적용하지 않았습니다.
 - **라우터 외부 게이트웨이의 고정 IP 지정은 Neutron 기본 정책으로만 막힙니다.** `oslab router create lab-<이름> …`은 옵션을 거의 그대로 넘기므로 `--external-gateway provider --fixed-ip subnet=provider,ip-address=…`처럼 LAN 주소를 지정하는 요청도 Neutron까지 전달됩니다. 이 요청은 Neutron 기본 정책(`create_router:external_gateway_info:external_fixed_ips`는 admin 전용)이 차단합니다. wrapper는 이 옵션을 따로 검사하지 않으므로, Neutron 정책을 바꿀 때는 이 규칙을 유지하세요.
 - Quota 안에서는 VM을 계속 만들 수 있습니다(최대 3대/12 GB). `oslab`으로는 지울 수 없으므로, 남은 `lab-` VM은 봇이 `osadmin`으로 정리하거나 사람이 삭제합니다. 일일 점검 리포트에 남은 `lab-` VM이 표시됩니다.
 - Hermes의 기존 차단 패턴 `*reboot*` 때문에 Hermes에서 `oslab server reboot` 은 막힙니다(stop/start로 대체). `*authorized_keys*` 때문에 터미널 명령으로 `ssh_authorized_keys` 가 포함된 user-data 파일을 작성하는 것도 막힙니다(파일 도구로 작성하거나 사람이 준비).
